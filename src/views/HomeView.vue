@@ -2,6 +2,7 @@
 import { inject, reactive, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import CopyField from '../components/CopyField.vue'
+import SantaPull from '../components/SantaPull.vue'
 import { adminLink, currentBase, joinLink } from '../lib/links'
 import { forgetSession, loadSessions, rememberSession } from '../lib/localSessions'
 import { SessionApiError } from '../lib/sessionApi'
@@ -63,16 +64,16 @@ const formatDate = (iso: string) => {
 </script>
 
 <template>
-  <section class="card" aria-labelledby="create-title">
+  <section v-if="!api" class="card" aria-labelledby="create-title">
     <h2 id="create-title">Create a session</h2>
+    <p class="banner banner--warning" role="status">
+      Sessions are not available here yet: this site is not connected to a session service.
+    </p>
+  </section>
 
-    <template v-if="!api">
-      <p class="banner banner--warning" role="status">
-        Sessions are not available here yet: this site is not connected to a session service.
-      </p>
-    </template>
-
-    <template v-else>
+  <SantaPull v-else label="Create a session">
+    <section class="card" aria-labelledby="create-title">
+      <h2 id="create-title">Create a session</h2>
       <p class="muted">Share one link, everyone adds their own details, then you run the draw.</p>
       <form class="form" novalidate @submit.prevent="create">
         <div class="field field--wide">
@@ -93,10 +94,10 @@ const formatDate = (iso: string) => {
 
         <div class="field field--wide">
           <label for="session-description">Note for participants <span class="optional">(optional)</span></label>
-          <input
+          <textarea
             id="session-description"
             v-model="form.description"
-            type="text"
+            rows="4"
             autocomplete="off"
             placeholder="Budget 20 EUR, gifts on Dec 20"
             :maxlength="SESSION_LIMITS.description"
@@ -104,6 +105,7 @@ const formatDate = (iso: string) => {
             :aria-describedby="errors.description ? 'session-description-error' : undefined"
             @input="clearError('description')"
           />
+          <p class="field__hint">{{ form.description.length }} / {{ SESSION_LIMITS.description }}</p>
           <p v-if="errors.description" id="session-description-error" class="field__error">
             {{ errors.description }}
           </p>
@@ -113,8 +115,8 @@ const formatDate = (iso: string) => {
 
         <button type="submit" class="btn btn--primary" :disabled="pending">Create session</button>
       </form>
-    </template>
-  </section>
+    </section>
+  </SantaPull>
 
   <section v-if="created" class="card" aria-labelledby="created-title">
     <h2 id="created-title">Session created: {{ created.title }}</h2>

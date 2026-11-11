@@ -26,7 +26,13 @@ async function openHome(api: SessionApi | null) {
   return { root, router }
 }
 
+async function openForm(root: HTMLElement) {
+  button(root, 'Create a session').click()
+  await settle()
+}
+
 async function createSession(root: HTMLElement, title: string, description = '') {
+  if (!root.querySelector('#session-title')) await openForm(root)
   await typeInto(root, '#session-title', title)
   await typeInto(root, '#session-description', description)
   button(root, 'Create session').click()
@@ -37,6 +43,36 @@ const inputValues = (root: HTMLElement) =>
   [...root.querySelectorAll<HTMLInputElement>('input[readonly]')].map((input) => input.value)
 
 describe('HomeView', () => {
+  it('starts with only a big red button, no form', async () => {
+    const { root } = await openHome(new InMemorySessionApi())
+
+    expect(root.querySelector('form')).toBeNull()
+    expect(root.querySelector('#session-title')).toBeNull()
+    expect(root.querySelector('.btn--huge.btn--primary')?.textContent?.trim()).toBe('Create a session')
+  })
+
+  it('brings in the form, with Santa pulling it, when the button is pressed', async () => {
+    const { root } = await openHome(new InMemorySessionApi())
+
+    await openForm(root)
+
+    expect(root.querySelector('.btn--huge')).toBeNull()
+    expect(root.querySelector('form #session-title')).not.toBeNull()
+    expect(root.querySelector('.santa-layer')).not.toBeNull()
+  })
+
+  it('takes the note for participants in a text area', async () => {
+    const { root } = await openHome(new InMemorySessionApi())
+    await openForm(root)
+
+    const note = root.querySelector('#session-description')
+
+    expect(note?.tagName).toBe('TEXTAREA')
+    expect(note?.getAttribute('maxlength')).toBe('500')
+    await typeInto(root, '#session-description', 'Budget 20')
+    expect(clean(root.querySelector('.field__hint')?.textContent)).toBe('9 / 500')
+  })
+
   it('creates a session and shows the participant and admin links with a warning', async () => {
     const api = new InMemorySessionApi({ randomId: () => 'sess-1', randomToken: () => 'tok-1' })
     const { root } = await openHome(api)
