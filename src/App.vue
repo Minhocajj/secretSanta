@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
+import Backdrop from './components/Backdrop.vue'
 </script>
 
 <template>
+  <Backdrop />
   <main class="app">
     <header class="hero">
       <img src="/favicon.svg" alt="" width="56" height="56" />
