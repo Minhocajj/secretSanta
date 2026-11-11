@@ -335,6 +335,81 @@ body {
   color: var(--green);
 }
 
+.participant__gift-label {
+  font-weight: 600;
+}
+
+.rich {
+  overflow-wrap: anywhere;
+}
+
+.card .rich p {
+  margin: 4px 0;
+  white-space: pre-line;
+}
+
+.rich ul,
+.rich ol {
+  padding-left: 22px;
+  margin: 4px 0;
+}
+
+.rich a {
+  color: var(--green);
+  text-decoration: underline;
+}
+
+.editor {
+  display: grid;
+  gap: 6px;
+}
+
+.editor__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.editor__button {
+  min-width: 36px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: #17402d;
+  cursor: pointer;
+  background: #e5eee6;
+  border: 0;
+  border-radius: 8px;
+}
+
+.editor__button:hover {
+  background: #d4e3d6;
+}
+
+.editor__button:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.editor textarea {
+  min-height: 96px;
+}
+
+.editor__preview {
+  padding: 8px 12px;
+  background: #faf6ea;
+  border: 1px dashed #cfc8b8;
+  border-radius: 10px;
+}
+
+.editor__preview-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .check {
   display: flex;
   gap: 10px;

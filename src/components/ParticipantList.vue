@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { Participant } from '../types'
+import RichText from './RichText'
 
 withDefaults(defineProps<{ participants: readonly Participant[]; removable?: boolean }>(), { removable: true })
 defineEmits<{ remove: [id: number] }>()
@@ -12,7 +13,9 @@ defineEmits<{ remove: [id: number] }>()
       <div class="participant__info">
         <strong>{{ participant.name }}</strong>
         <span class="muted">{{ participant.email }}</span>
-        <span v-if="participant.gift" class="participant__gift">Gift idea: {{ participant.gift }}</span>
+        <div v-if="participant.gift" class="participant__gift">
+          <span class="participant__gift-label">Gift idea:</span> <RichText :source="participant.gift" />
+        </div>
       </div>
       <button
         v-if="removable"

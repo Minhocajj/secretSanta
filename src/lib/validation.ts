@@ -1,6 +1,6 @@
 import type { Participant, ParticipantInput, SessionInput } from '../types'
 
-export const LIMITS = { name: 60, email: 254, gift: 200, participants: 100 } as const
+export const LIMITS = { name: 60, email: 254, gift: 500, participants: 100 } as const
 export const SESSION_LIMITS = { title: 80, description: 500 } as const
 export const MIN_PARTICIPANTS = 2
 export const UNEXPECTED_FORM_ERROR = 'Something went wrong. Please try again.'
@@ -62,7 +62,7 @@ const sameText = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 export const hasErrors = (errors: object) => Object.keys(errors).length > 0
 
 export function normalizeInput({ name, email, gift }: ParticipantInput): ParticipantInput {
-  return { name: collapseSpaces(name), email: email.trim(), gift: collapseSpaces(gift) }
+  return { name: collapseSpaces(name), email: email.trim(), gift: collapseNote(gift) }
 }
 
 export function validateParticipant(input: ParticipantInput, existing: readonly Participant[]): ParticipantErrors {
@@ -91,7 +91,7 @@ export function validateParticipant(input: ParticipantInput, existing: readonly 
 
   if (gift.length > LIMITS.gift) {
     errors.gift = fieldMessage('gift', 'too_long')
-  } else if (CONTROL_CHARACTERS.test(gift)) {
+  } else if (NOTE_CONTROL_CHARACTERS.test(gift)) {
     errors.gift = fieldMessage('gift', 'unsupported')
   }
 

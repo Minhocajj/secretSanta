@@ -59,6 +59,19 @@ export function describeSessionApiContract(label: string, createApi: () => Sessi
         expect((await api.getPublicSession(id)).description).toBe('Budget: 20 euro\n\nGifts on Dec 20')
       })
 
+      it('keeps the line breaks and formatting marks of a gift idea, tidied the same way everywhere', async () => {
+        const { api, id, adminToken } = await startSession()
+
+        await api.join(id, {
+          name: 'Alice',
+          email: 'alice@example.com',
+          gift: '  **Wishlist**  \r\n\r\n\r\n\r\n- a book \t\n- [socks](https://example.com/s)\n',
+        })
+
+        const { participants } = await api.getAdminView(id, adminToken)
+        expect(participants[0].gift).toBe('**Wishlist**\n\n- a book\n- [socks](https://example.com/s)')
+      })
+
       it('rejects other control characters in the note', async () => {
         const api = createApi()
 

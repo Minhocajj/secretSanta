@@ -25,8 +25,12 @@ describe('normalizeInput', () => {
     expect(normalizeInput({ name: '  Alice \t  Smith ', email: '  a@b.co ', gift: ' a  red\nscarf ' })).toEqual({
       name: 'Alice Smith',
       email: 'a@b.co',
-      gift: 'a red scarf',
+      gift: 'a red\nscarf',
     })
+  })
+
+  it('keeps the line breaks of a gift idea, tidied like the session note', () => {
+    expect(normalizeInput({ ...valid, gift: '  - a book  \r\n\r\n\r\n - a scarf \t\n' }).gift).toBe('- a book\n\n- a scarf')
   })
 })
 
@@ -75,6 +79,22 @@ describe('validateParticipant', () => {
     expect(validateParticipant({ ...valid, gift: 'x'.repeat(LIMITS.gift) }, []).gift).toBeUndefined()
     const longEmail = `${'x'.repeat(LIMITS.email)}@example.com`
     expect(validateParticipant({ ...valid, email: longEmail }, []).email).toBe('Enter a valid email address')
+  })
+
+  it('accepts a formatted gift idea with line breaks and links', () => {
+    const gift = '**Wishlist**\n- a book\n- *warm* socks\n[shop](https://example.com)'
+
+    expect(validateParticipant({ ...valid, gift }, [])).toEqual({})
+  })
+
+  it('counts line breaks and markup against the gift idea limit', () => {
+    expect(validateParticipant({ ...valid, gift: `${'x\n'.repeat(LIMITS.gift / 2)}x` }, []).gift).toContain('at most')
+  })
+
+  it('still rejects other control characters in a multi-line gift idea', () => {
+    expect(validateParticipant({ ...valid, gift: 'a\n- b\u0007' }, []).gift).toBe(
+      'Gift idea contains unsupported characters',
+    )
   })
 
   it('rejects control characters', () => {

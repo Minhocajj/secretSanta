@@ -159,7 +159,7 @@ describe('toSessionError', () => {
       fields: {
         name: 'Someone with this name is already on the list',
         email: 'Enter a valid email address',
-        gift: 'Gift idea must be at most 200 characters',
+        gift: 'Gift idea must be at most 500 characters',
         title: 'Title is required',
       },
     })
