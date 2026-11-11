@@ -7,6 +7,7 @@ import ParticipantForm from '../components/ParticipantForm.vue'
 import ParticipantList from '../components/ParticipantList.vue'
 import { useSecretSanta } from '../composables/useSecretSanta'
 import { currentBase, joinLink } from '../lib/links'
+import { celebrate } from '../lib/celebrate'
 import { findAdminToken, forgetSession, rememberSession } from '../lib/localSessions'
 import { readSessionMailConfig, sendViaServer } from '../lib/mailer'
 import { SessionApiError, toFormErrors, type AdminView } from '../lib/sessionApi'
@@ -164,6 +165,13 @@ watch([drawPhase, failedCount], ([phase, failed]) => {
     void run(() => api!.completeSession(id.value, token.value))
   }
 })
+
+watch(
+  () => view.value?.session.status,
+  (status, previous) => {
+    if (status === 'completed' && previous === 'closed') celebrate()
+  },
+)
 
 const showDraw = computed(() => {
   const status = view.value?.session.status
