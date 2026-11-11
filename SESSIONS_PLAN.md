@@ -1,6 +1,6 @@
 # Plan: sessions with a shareable join link and a private admin link
 
-> **Status:** decisions 1 to 5 are settled, and decision 4 has one consequence to confirm (see [Decisions](#decisions)). Phase 0 (setup) is done: the app is deployed as a Cloudflare Worker in dry-run mode and Supabase is ready. Phase 1 (foundations) is built on branch `feat/new-flow`; its one open check is `/quick` on the deployed URL. Phase 2 is next.
+> **Status:** decisions 1 to 5 are settled, and decision 4 has one consequence to confirm (see [Decisions](#decisions)). Phase 0 (setup) is done: the app is deployed as a Cloudflare Worker in dry-run mode and Supabase is ready. Phase 1 (foundations) is built on branch `feat/new-flow`; its one open check is `/quick` on the deployed URL. Phase 2 (backend) is built and tested locally; its one open step is applying the migration to the Supabase project.
 > File paths are relative to the repo root. Line numbers refer to the code at the time of writing.
 
 ## Goal
@@ -110,6 +110,15 @@ No code changes. The goal is to have the current app online and a Supabase proje
   - the database rejects bad data
   - the same contract tests pass against the fake and the real API
 
+- **Status:** built and checked locally (typecheck, 264 tests, build). Still open: apply `supabase/migrations/20261111130000_sessions.sql` to the project (SQL editor, or `supabase db push`) and run one real `create_session` call.
+- **What later phases rely on:**
+  - The migration keeps all data in schema `private`; `anon` only has `execute` on 11 `public` RPCs (everything `security definer`, `search_path ''`). Errors are `raise exception 'app:<code>'` (`not_found`, `closed`, `full`, `invalid`, `conflict`, `rate_limited`); `invalid` carries `{field: reason}` JSON in `detail`, which `SupabaseSessionApi` maps to the same messages as `validation.ts` (`fieldMessage`).
+  - `src/lib/backend.ts`: `readBackendConfig(import.meta.env)` returns `supabase` or `unconfigured` (with `problems`; secret keys are refused) and `createSessionApi(config)` returns the API or `null`. Nothing is wired into the app yet; Phase 3 does that.
+  - Tunables live in `private.settings` (`create_per_hour_per_ip` 10, `join_per_hour_per_ip` 60, `max_sessions` 2000, `retention_days` 60). Failed requests roll back, so they are not counted by the throttles. Client IP: `cf-connecting-ip`, else the last `x-forwarded-for` entry (to confirm against Supabase's real headers).
+  - Expiry: `private.purge_expired()` is scheduled daily with `pg_cron` when the extension exists; otherwise schedule it yourself.
+  - Tests run the real migration in PGlite (`src/lib/testDatabase.ts`, PostgreSQL 18 in WASM, no Docker): `sessionsSchema.test.ts` (access, constraints, throttles, expiry, parity with the client validators) and the shared contract in `supabaseSessionApi.contract.test.ts`. Not covered: real concurrency (row locks) and `authorize_send` (Phase 6).
+  - `authorize_send` is not in this migration; Phase 6 adds it.
+
 ### Phase 3: join page (`/join/:id`)
 
 - Show title and note, the reused form, and a success state.
@@ -198,6 +207,6 @@ Out of scope for now: participant self-edit or withdraw, exclusion rules (such a
 
 ## Next step
 
-Phase 0 is done and Phase 1 is built on `feat/new-flow`, with only its deployed-URL check open. Phase 2 is next, starting from the `SessionApi` contract tests.
+Phase 0 is done, Phase 1 is built with its deployed-URL check open, and Phase 2 is built locally. Next: apply the migration to Supabase, then Phase 3 (join page), wiring `readBackendConfig` and `createSessionApi` in `main.ts`.
 
 In parallel, in the EmailJS dashboard (you): add the Email Service and create the template from `README.md:17-28` with history off. Real test sends from a local `.env` are optional; keep "Use Private Key" off while you do them, and switch both Security options on only at the end of Phase 6.

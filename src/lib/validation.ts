@@ -9,6 +9,41 @@ const EMAIL_PATTERN =
   /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i
 const CONTROL_CHARACTERS = /\p{Cc}/u
 
+export type FieldReason = 'required' | 'too_long' | 'unsupported' | 'invalid' | 'taken'
+export type MessageField = keyof ParticipantInput | keyof SessionInput
+
+const FIELD_MESSAGES: Record<MessageField, Partial<Record<FieldReason, string>>> = {
+  name: {
+    required: 'Name is required',
+    too_long: `Name must be at most ${LIMITS.name} characters`,
+    unsupported: 'Name contains unsupported characters',
+    taken: 'Someone with this name is already on the list',
+  },
+  email: {
+    required: 'Email is required',
+    invalid: 'Enter a valid email address',
+    taken: 'This email is already on the list',
+  },
+  gift: {
+    too_long: `Gift idea must be at most ${LIMITS.gift} characters`,
+    unsupported: 'Gift idea contains unsupported characters',
+  },
+  title: {
+    required: 'Title is required',
+    too_long: `Title must be at most ${SESSION_LIMITS.title} characters`,
+    unsupported: 'Title contains unsupported characters',
+  },
+  description: {
+    too_long: `Description must be at most ${SESSION_LIMITS.description} characters`,
+    unsupported: 'Description contains unsupported characters',
+  },
+}
+
+export const FALLBACK_FIELD_MESSAGE = 'Please check this field'
+
+export const fieldMessage = (field: MessageField, reason: FieldReason): string =>
+  FIELD_MESSAGES[field][reason] ?? FALLBACK_FIELD_MESSAGE
+
 export type ParticipantErrors = Partial<Record<keyof ParticipantInput, string>>
 export type FormErrors = ParticipantErrors & { form?: string }
 export type SessionErrors = Partial<Record<keyof SessionInput, string>>
@@ -29,27 +64,27 @@ export function validateParticipant(input: ParticipantInput, existing: readonly 
   if (existing.length >= LIMITS.participants) {
     errors.name = `At most ${LIMITS.participants} participants are supported`
   } else if (!name) {
-    errors.name = 'Name is required'
+    errors.name = fieldMessage('name', 'required')
   } else if (name.length > LIMITS.name) {
-    errors.name = `Name must be at most ${LIMITS.name} characters`
+    errors.name = fieldMessage('name', 'too_long')
   } else if (CONTROL_CHARACTERS.test(name)) {
-    errors.name = 'Name contains unsupported characters'
+    errors.name = fieldMessage('name', 'unsupported')
   } else if (existing.some((participant) => sameText(participant.name, name))) {
-    errors.name = 'Someone with this name is already on the list'
+    errors.name = fieldMessage('name', 'taken')
   }
 
   if (!email) {
-    errors.email = 'Email is required'
+    errors.email = fieldMessage('email', 'required')
   } else if (email.length > LIMITS.email || !EMAIL_PATTERN.test(email)) {
-    errors.email = 'Enter a valid email address'
+    errors.email = fieldMessage('email', 'invalid')
   } else if (existing.some((participant) => sameText(participant.email, email))) {
-    errors.email = 'This email is already on the list'
+    errors.email = fieldMessage('email', 'taken')
   }
 
   if (gift.length > LIMITS.gift) {
-    errors.gift = `Gift idea must be at most ${LIMITS.gift} characters`
+    errors.gift = fieldMessage('gift', 'too_long')
   } else if (CONTROL_CHARACTERS.test(gift)) {
-    errors.gift = 'Gift idea contains unsupported characters'
+    errors.gift = fieldMessage('gift', 'unsupported')
   }
 
   return errors
@@ -64,17 +99,17 @@ export function validateSession(input: SessionInput): SessionErrors {
   const errors: SessionErrors = {}
 
   if (!title) {
-    errors.title = 'Title is required'
+    errors.title = fieldMessage('title', 'required')
   } else if (title.length > SESSION_LIMITS.title) {
-    errors.title = `Title must be at most ${SESSION_LIMITS.title} characters`
+    errors.title = fieldMessage('title', 'too_long')
   } else if (CONTROL_CHARACTERS.test(title)) {
-    errors.title = 'Title contains unsupported characters'
+    errors.title = fieldMessage('title', 'unsupported')
   }
 
   if (description.length > SESSION_LIMITS.description) {
-    errors.description = `Description must be at most ${SESSION_LIMITS.description} characters`
+    errors.description = fieldMessage('description', 'too_long')
   } else if (CONTROL_CHARACTERS.test(description)) {
-    errors.description = 'Description contains unsupported characters'
+    errors.description = fieldMessage('description', 'unsupported')
   }
 
   return errors
