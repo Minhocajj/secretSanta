@@ -50,7 +50,7 @@ Supabase free projects are paused after a week of low activity. Resume the proje
 3. Create an **Email Template** ([dashboard](https://dashboard.emailjs.com/admin/templates)) and note its **Template ID**:
    - **To Email**: `{{to_email}}`
    - **Subject**: `Secret Santa`
-   - **Content**: `<div style="white-space: pre-line">{{message}}</div>` (optionally `Hi {{to_name}},` above it). The `pre-line` style keeps the line breaks of lists in gift ideas. Without it, email clients run the lines together, which is still readable because list items start with a bullet.
+   - **Content**: switch the editor to **Code editor** and paste the whole of [`email-template.html`](email-template.html). It is a styled email in the colours of the app (red header, green accents, cream card) with no animations, scripts or images. It uses `{{to_name}}` and `{{message}}`. The message sits in a `white-space: pre-line` box, which keeps the line breaks of lists in gift ideas.
    - Keep the double braces. They are HTML-escaped by EmailJS. Never use `{{{...}}}`, because names and gift ideas are typed in by people.
    - In the template settings, **turn off email history** (see the privacy notes below).
 4. Copy your **Public Key** from the [account page](https://dashboard.emailjs.com/admin/account).
