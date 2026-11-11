@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { Participant } from '../types'
-import { LIMITS, hasErrors, normalizeInput, validateParticipant } from './validation'
+import {
+  LIMITS,
+  SESSION_LIMITS,
+  hasErrors,
+  normalizeInput,
+  normalizeSession,
+  validateParticipant,
+  validateSession,
+} from './validation'
 
 const valid = { name: 'Alice', email: 'alice@example.com', gift: '' }
 
@@ -87,5 +95,47 @@ describe('validateParticipant', () => {
   it('stops accepting people at the participant limit', () => {
     expect(validateParticipant(valid, existing(LIMITS.participants - 1))).toEqual({})
     expect(validateParticipant(valid, existing(LIMITS.participants)).name).toContain(`${LIMITS.participants} participants`)
+  })
+})
+
+describe('hasErrors', () => {
+  it('is true as soon as one field has a message', () => {
+    expect(hasErrors({})).toBe(false)
+    expect(hasErrors({ form: 'This session is closed' })).toBe(true)
+    expect(hasErrors({ title: 'Title is required' })).toBe(true)
+  })
+})
+
+describe('normalizeSession', () => {
+  it('trims values and collapses inner whitespace', () => {
+    expect(normalizeSession({ title: '  Office \t party ', description: ' a\n note ' })).toEqual({
+      title: 'Office party',
+      description: 'a note',
+    })
+  })
+})
+
+describe('validateSession', () => {
+  it('accepts a title with or without a description', () => {
+    expect(validateSession({ title: 'Office party', description: '' })).toEqual({})
+    expect(validateSession({ title: 'Office party', description: 'Budget: 20 euro' })).toEqual({})
+  })
+
+  it('requires a title', () => {
+    expect(validateSession({ title: '   ', description: '' }).title).toBe('Title is required')
+  })
+
+  it('enforces length limits', () => {
+    const ok = { title: 'x'.repeat(SESSION_LIMITS.title), description: 'y'.repeat(SESSION_LIMITS.description) }
+    expect(validateSession(ok)).toEqual({})
+    expect(validateSession({ ...ok, title: `${ok.title}x` }).title).toContain('at most')
+    expect(validateSession({ ...ok, description: `${ok.description}y` }).description).toContain('at most')
+  })
+
+  it('rejects control characters', () => {
+    expect(validateSession({ title: 'Party\u0000', description: '' }).title).toBe('Title contains unsupported characters')
+    expect(validateSession({ title: 'Party', description: 'Note\u0007' }).description).toBe(
+      'Description contains unsupported characters',
+    )
   })
 })

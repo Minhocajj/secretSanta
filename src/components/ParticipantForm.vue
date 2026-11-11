@@ -1,23 +1,41 @@
 <script setup lang="ts">
 import { reactive, ref, useTemplateRef } from 'vue'
-import { LIMITS, hasErrors, validateParticipant, type ParticipantErrors } from '../lib/validation'
+import { LIMITS, UNEXPECTED_FORM_ERROR, hasErrors, validateParticipant, type FormErrors } from '../lib/validation'
 import type { Participant, ParticipantInput } from '../types'
 
-const props = defineProps<{ participants: readonly Participant[] }>()
-const emit = defineEmits<{ add: [input: ParticipantInput] }>()
+const props = withDefaults(
+  defineProps<{
+    save: (input: ParticipantInput) => FormErrors | Promise<FormErrors>
+    participants?: readonly Participant[]
+    submitLabel?: string
+  }>(),
+  { participants: () => [], submitLabel: 'Add participant' },
+)
 
 const form = reactive<ParticipantInput>({ name: '', email: '', gift: '' })
-const errors = ref<ParticipantErrors>({})
+const errors = ref<FormErrors>({})
+const pending = ref(false)
 const nameInput = useTemplateRef<HTMLInputElement>('nameInput')
 
 function clearError(field: keyof ParticipantInput) {
   delete errors.value[field]
 }
 
-function submit() {
+async function submit() {
+  if (pending.value) return
   errors.value = validateParticipant(form, props.participants)
   if (hasErrors(errors.value)) return
-  emit('add', { name: form.name, email: form.email, gift: form.gift })
+
+  pending.value = true
+  try {
+    errors.value = await props.save({ name: form.name, email: form.email, gift: form.gift })
+  } catch {
+    errors.value = { form: UNEXPECTED_FORM_ERROR }
+  } finally {
+    pending.value = false
+  }
+  if (hasErrors(errors.value)) return
+
   form.name = ''
   form.email = ''
   form.gift = ''
@@ -74,6 +92,8 @@ function submit() {
       <p v-if="errors.gift" id="participant-gift-error" class="field__error">{{ errors.gift }}</p>
     </div>
 
-    <button type="submit" class="btn btn--secondary">Add participant</button>
+    <p v-if="errors.form" class="form__error" role="alert">{{ errors.form }}</p>
+
+    <button type="submit" class="btn btn--secondary" :disabled="pending">{{ submitLabel }}</button>
   </form>
 </template>

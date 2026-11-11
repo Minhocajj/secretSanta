@@ -1,18 +1,22 @@
-import type { Participant, ParticipantInput } from '../types'
+import type { Participant, ParticipantInput, SessionInput } from '../types'
 
 export const LIMITS = { name: 60, email: 254, gift: 200, participants: 100 } as const
+export const SESSION_LIMITS = { title: 80, description: 500 } as const
 export const MIN_PARTICIPANTS = 2
+export const UNEXPECTED_FORM_ERROR = 'Something went wrong. Please try again.'
 
 const EMAIL_PATTERN =
   /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i
 const CONTROL_CHARACTERS = /\p{Cc}/u
 
 export type ParticipantErrors = Partial<Record<keyof ParticipantInput, string>>
+export type FormErrors = ParticipantErrors & { form?: string }
+export type SessionErrors = Partial<Record<keyof SessionInput, string>>
 
 const collapseSpaces = (value: string) => value.replace(/\s+/gu, ' ').trim()
 const sameText = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
-export const hasErrors = (errors: ParticipantErrors) => Object.keys(errors).length > 0
+export const hasErrors = (errors: object) => Object.keys(errors).length > 0
 
 export function normalizeInput({ name, email, gift }: ParticipantInput): ParticipantInput {
   return { name: collapseSpaces(name), email: email.trim(), gift: collapseSpaces(gift) }
@@ -46,6 +50,31 @@ export function validateParticipant(input: ParticipantInput, existing: readonly 
     errors.gift = `Gift idea must be at most ${LIMITS.gift} characters`
   } else if (CONTROL_CHARACTERS.test(gift)) {
     errors.gift = 'Gift idea contains unsupported characters'
+  }
+
+  return errors
+}
+
+export function normalizeSession({ title, description }: SessionInput): SessionInput {
+  return { title: collapseSpaces(title), description: collapseSpaces(description) }
+}
+
+export function validateSession(input: SessionInput): SessionErrors {
+  const { title, description } = normalizeSession(input)
+  const errors: SessionErrors = {}
+
+  if (!title) {
+    errors.title = 'Title is required'
+  } else if (title.length > SESSION_LIMITS.title) {
+    errors.title = `Title must be at most ${SESSION_LIMITS.title} characters`
+  } else if (CONTROL_CHARACTERS.test(title)) {
+    errors.title = 'Title contains unsupported characters'
+  }
+
+  if (description.length > SESSION_LIMITS.description) {
+    errors.description = `Description must be at most ${SESSION_LIMITS.description} characters`
+  } else if (CONTROL_CHARACTERS.test(description)) {
+    errors.description = 'Description contains unsupported characters'
   }
 
   return errors

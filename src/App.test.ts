@@ -1,163 +1,33 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { createApp, nextTick, type App as VueApp } from 'vue'
+import { afterEach, describe, expect, it } from 'vitest'
+import { createMemoryHistory } from 'vue-router'
 import App from './App.vue'
+import { createAppRouter } from './router'
+import { mountComponent, unmountAll } from './testing'
 
-let mounted: { app: VueApp; root: HTMLElement } | undefined
+afterEach(unmountAll)
 
-function mountApp() {
-  const root = document.createElement('div')
-  document.body.append(root)
-  const app = createApp(App)
-  app.mount(root)
-  mounted = { app, root }
-  return root
+async function mountAt(path: string) {
+  const router = createAppRouter(createMemoryHistory())
+  await router.push(path)
+  const root = mountComponent(App, {}, [router])
+  return { root, router }
 }
-
-afterEach(() => {
-  mounted?.app.unmount()
-  mounted?.root.remove()
-  mounted = undefined
-})
-
-const clean = (text: string | null) => (text ?? '').replace(/\s+/g, ' ').trim()
-
-function button(root: HTMLElement, label: string) {
-  const found = [...root.querySelectorAll('button')].find((candidate) => clean(candidate.textContent).includes(label))
-  if (!found) throw new Error(`No button labelled "${label}"`)
-  return found
-}
-
-async function type(root: HTMLElement, selector: string, value: string) {
-  const input = root.querySelector<HTMLInputElement>(selector)!
-  input.value = value
-  input.dispatchEvent(new Event('input', { bubbles: true }))
-  await nextTick()
-}
-
-async function addPerson(root: HTMLElement, name: string, email: string, gift = '') {
-  await type(root, '#participant-name', name)
-  await type(root, '#participant-email', email)
-  await type(root, '#participant-gift', gift)
-  button(root, 'Add participant').click()
-  await nextTick()
-}
-
-async function addTrio(root: HTMLElement) {
-  await addPerson(root, 'Alice', 'alice@example.com', 'a red scarf')
-  await addPerson(root, 'Bob', 'bob@example.com')
-  await addPerson(root, 'Carol', 'carol@example.com', 'good coffee')
-}
-
-async function setShowResults(root: HTMLElement, checked: boolean) {
-  const checkbox = root.querySelector<HTMLInputElement>('input[type="checkbox"]')!
-  checkbox.checked = checked
-  checkbox.dispatchEvent(new Event('change', { bubbles: true }))
-  await nextTick()
-}
-
-const pairLines = (root: HTMLElement) =>
-  [...root.querySelectorAll('.pairs li')].map((item) => clean(item.textContent))
 
 describe('App', () => {
-  it('adds participants to the list and validates the form', async () => {
-    const root = mountApp()
+  it('wraps the quick flow in the shared header at /quick', async () => {
+    const { root, router } = await mountAt('/quick')
 
-    await addPerson(root, 'Alice', 'alice@example.com', 'a red scarf')
-    expect(root.querySelectorAll('.participant')).toHaveLength(1)
-    expect(root.textContent).toContain('Gift idea: a red scarf')
-    expect(root.querySelector<HTMLInputElement>('#participant-name')!.value).toBe('')
-
-    await addPerson(root, 'alice', 'someone@example.com')
-    expect(root.textContent).toContain('Someone with this name is already on the list')
-
-    await addPerson(root, 'Bob', 'not-an-email')
-    expect(root.textContent).toContain('Enter a valid email address')
-    expect(root.querySelectorAll('.participant')).toHaveLength(1)
+    expect(router.currentRoute.value.path).toBe('/quick')
+    expect(root.querySelector('.hero h1')?.textContent).toBe('Secret Santa')
+    expect(root.querySelector('#participants-title')).not.toBeNull()
+    expect(root.querySelector('#participant-name')).not.toBeNull()
   })
 
-  it('removes participants', async () => {
-    const root = mountApp()
-    await addTrio(root)
+  it.each(['/', '/join/some-id', '/admin/some-id', '/nowhere/at/all'])('opens the quick flow for %s', async (path) => {
+    const { root, router } = await mountAt(path)
 
-    root.querySelector<HTMLButtonElement>('[aria-label="Remove Bob"]')!.click()
-    await nextTick()
-
-    expect([...root.querySelectorAll('.participant strong')].map((item) => item.textContent)).toEqual(['Alice', 'Carol'])
-  })
-
-  it('keeps the roll button disabled until two people were added', async () => {
-    const root = mountApp()
-    expect(button(root, 'Roll the dice').disabled).toBe(true)
-
-    await addPerson(root, 'Alice', 'alice@example.com')
-    expect(button(root, 'Roll the dice').disabled).toBe(true)
-
-    await addPerson(root, 'Bob', 'bob@example.com')
-    expect(button(root, 'Roll the dice').disabled).toBe(false)
-  })
-
-  it('shows the draw, allows re-rolling, and sends the emails only after confirmation', async () => {
-    const root = mountApp()
-    await addTrio(root)
-    await setShowResults(root, true)
-
-    button(root, 'Roll the dice').click()
-    await nextTick()
-
-    const first = pairLines(root)
-    expect(first).toHaveLength(3)
-    for (const line of first) {
-      const [santa, giftee] = line.split(' is Santa for ')
-      expect(santa).not.toBe(giftee)
-    }
-    expect(root.querySelector('.badge')).toBeNull()
-
-    button(root, 'Re-roll').click()
-    await nextTick()
-    expect(pairLines(root)).not.toEqual(first)
-
-    button(root, 'Confirm and send emails').click()
-    await vi.waitFor(() => expect(root.textContent).toContain('3 of 3 emails sent'))
-    expect(root.querySelectorAll('.badge--sent')).toHaveLength(3)
-    expect(button(root, 'Start over')).toBeDefined()
-  })
-
-  it('draws silently and never renders who got whom', async () => {
-    const root = mountApp()
-    await addTrio(root)
-
-    button(root, 'Roll the dice').click()
-    await vi.waitFor(() => expect(root.textContent).toContain('3 of 3 emails sent'))
-
-    expect(root.querySelector('.pairs')).toBeNull()
-    expect(root.textContent).not.toContain('is Santa for')
-  })
-
-  it('lets the user go back from the draw to edit the participants', async () => {
-    const root = mountApp()
-    await addTrio(root)
-    await setShowResults(root, true)
-    button(root, 'Roll the dice').click()
-    await nextTick()
-
-    button(root, 'Back to participants').click()
-    await nextTick()
-
-    expect(root.querySelectorAll('.participant')).toHaveLength(3)
-    expect(root.querySelector('.pairs')).toBeNull()
-  })
-
-  it('starts over with an empty list', async () => {
-    const root = mountApp()
-    await addTrio(root)
-    button(root, 'Roll the dice').click()
-    await vi.waitFor(() => expect(root.textContent).toContain('3 of 3 emails sent'))
-
-    button(root, 'Start over').click()
-    await nextTick()
-
-    expect(root.querySelectorAll('.participant')).toHaveLength(0)
-    expect(root.textContent).toContain('No participants yet.')
+    expect(router.currentRoute.value.path).toBe('/quick')
+    expect(root.querySelector('#participants-title')).not.toBeNull()
   })
 })

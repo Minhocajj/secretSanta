@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Participant } from '../types'
 
-defineProps<{ participants: readonly Participant[] }>()
+withDefaults(defineProps<{ participants: readonly Participant[]; removable?: boolean }>(), { removable: true })
 defineEmits<{ remove: [id: number] }>()
 </script>
 
@@ -15,6 +15,7 @@ defineEmits<{ remove: [id: number] }>()
         <span v-if="participant.gift" class="participant__gift">Gift idea: {{ participant.gift }}</span>
       </div>
       <button
+        v-if="removable"
         type="button"
         class="btn btn--ghost"
         :aria-label="`Remove ${participant.name}`"
