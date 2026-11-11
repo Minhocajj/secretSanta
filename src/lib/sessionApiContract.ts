@@ -49,6 +49,25 @@ export function describeSessionApiContract(label: string, createApi: () => Sessi
         })
       })
 
+      it('keeps the line breaks of the note, tidied the same way everywhere', async () => {
+        const api = createApi()
+        const { id } = await api.createSession({
+          title: 'Party',
+          description: '  Budget:  20 euro \r\n\r\n\r\n\r\n Gifts on Dec 20 \t\n',
+        })
+
+        expect((await api.getPublicSession(id)).description).toBe('Budget: 20 euro\n\nGifts on Dec 20')
+      })
+
+      it('rejects other control characters in the note', async () => {
+        const api = createApi()
+
+        const error = await rejection(api.createSession({ title: 'Party', description: 'a\nb\u0007' }))
+
+        expect(error.code).toBe('invalid')
+        expect(error.fields.description).toContain('unsupported')
+      })
+
       it('gives every session its own id and admin token', async () => {
         const api = createApi()
         const first = await api.createSession({ title: 'One', description: '' })

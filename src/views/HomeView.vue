@@ -71,7 +71,7 @@ const formatDate = (iso: string) => {
     </p>
   </section>
 
-  <SantaPull v-else label="Create a session">
+  <SantaPull v-else-if="!created" label="Create a session">
     <section class="card" aria-labelledby="create-title">
       <h2 id="create-title">Create a session</h2>
       <p class="muted">Share one link, everyone adds their own details, then you run the draw.</p>
@@ -132,6 +132,7 @@ const formatDate = (iso: string) => {
       >
         Open admin page
       </RouterLink>
+      <button type="button" class="btn btn--ghost" @click="created = null">Create another session</button>
     </p>
   </section>
 

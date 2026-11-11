@@ -98,6 +98,11 @@ body {
   color: var(--muted);
 }
 
+.note {
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
 .banner {
   margin: 0;
   padding: 12px 16px;

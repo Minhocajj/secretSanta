@@ -85,6 +85,46 @@ describe('HomeView', () => {
     expect(await api.getPublicSession('sess-1')).toMatchObject({ title: 'Office party', description: 'Budget 20' })
   })
 
+  it('hides the creation form once a session was created', async () => {
+    const { root } = await openHome(new InMemorySessionApi({ randomId: () => 'sess-1', randomToken: () => 'tok-1' }))
+
+    await createSession(root, 'Party')
+
+    expect(root.querySelector('#created-title')).not.toBeNull()
+    expect(root.querySelector('form')).toBeNull()
+    expect(root.querySelector('#session-title')).toBeNull()
+    expect(root.querySelector('.btn--huge')).toBeNull()
+    expect(root.querySelector('.santa-layer')).toBeNull()
+  })
+
+  it('offers to create another session, starting again from the big button', async () => {
+    let next = 0
+    const api = new InMemorySessionApi({ randomId: () => `sess-${++next}`, randomToken: () => `tok-${next}` })
+    const { root } = await openHome(api)
+    await createSession(root, 'First')
+
+    button(root, 'Create another session').click()
+    await settle()
+
+    expect(root.querySelector('#created-title')).toBeNull()
+    expect(root.querySelector('form')).toBeNull()
+    expect(root.querySelector('.btn--huge')?.textContent?.trim()).toBe('Create a session')
+    expect(loadSessions().map((session) => session.title)).toEqual(['First'])
+
+    await createSession(root, 'Second')
+    expect(clean(root.querySelector('#created-title')?.textContent)).toBe('Session created: Second')
+    expect(loadSessions()).toHaveLength(2)
+  })
+
+  it('keeps the line breaks of the note', async () => {
+    const api = new InMemorySessionApi({ randomId: () => 'sess-1', randomToken: () => 'tok-1' })
+    const { root } = await openHome(api)
+
+    await createSession(root, 'Party', 'Budget 20\n\n\n\nGifts on Dec 20 ')
+
+    expect((await api.getPublicSession('sess-1')).description).toBe('Budget 20\n\nGifts on Dec 20')
+  })
+
   it('never puts the admin token in the participant link', async () => {
     const { root } = await openHome(new InMemorySessionApi({ randomId: () => 'sess-1', randomToken: () => 'tok-1' }))
 

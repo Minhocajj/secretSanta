@@ -104,7 +104,7 @@ async function save(input: ParticipantInput): Promise<FormErrors> {
 
     <template v-else-if="session">
       <h2 id="join-title">{{ session.title }}</h2>
-      <p v-if="session.description">{{ session.description }}</p>
+      <p v-if="session.description" class="note">{{ session.description }}</p>
 
       <template v-if="state === 'open'">
         <ParticipantForm :save="save" submit-label="Join" />

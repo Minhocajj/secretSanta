@@ -107,11 +107,33 @@ describe('hasErrors', () => {
 })
 
 describe('normalizeSession', () => {
-  it('trims values and collapses inner whitespace', () => {
-    expect(normalizeSession({ title: '  Office \t party ', description: ' a\n note ' })).toEqual({
-      title: 'Office party',
-      description: 'a note',
-    })
+  it('trims values and collapses inner whitespace in the title', () => {
+    expect(normalizeSession({ title: '  Office \t party \n tonight', description: '' }).title).toBe('Office party tonight')
+  })
+
+  it('keeps the line breaks of the note', () => {
+    expect(normalizeSession({ title: 'Party', description: 'Budget 20\nGifts on Dec 20' }).description).toBe(
+      'Budget 20\nGifts on Dec 20',
+    )
+  })
+
+  it.each([
+    ['  a\n note  ', 'a\nnote'],
+    ['a \t b\t\tc', 'a b c'],
+    ['line one  \n   line two', 'line one\nline two'],
+    ['one\r\ntwo\rthree', 'one\ntwo\nthree'],
+    ['one\n\n\n\n\ntwo', 'one\n\ntwo'],
+    ['one\n \n \n \ntwo', 'one\n\ntwo'],
+    ['\n\n  hello  \n\n', 'hello'],
+    ['   \n  ', ''],
+  ])('tidies the note %j into %j', (raw, expected) => {
+    expect(normalizeSession({ title: 'Party', description: raw }).description).toBe(expected)
+  })
+
+  it('is idempotent for notes', () => {
+    const once = normalizeSession({ title: 'x', description: ' a  \r\n\r\n\r\n b \n' }).description
+
+    expect(normalizeSession({ title: 'x', description: once }).description).toBe(once)
   })
 })
 
@@ -130,6 +152,26 @@ describe('validateSession', () => {
     expect(validateSession(ok)).toEqual({})
     expect(validateSession({ ...ok, title: `${ok.title}x` }).title).toContain('at most')
     expect(validateSession({ ...ok, description: `${ok.description}y` }).description).toContain('at most')
+  })
+
+  it('accepts line breaks in the note and counts them against the limit', () => {
+    expect(validateSession({ title: 'Party', description: 'a\nb' })).toEqual({})
+    expect(validateSession({ title: 'Party', description: `${'x\n'.repeat(SESSION_LIMITS.description / 2)}x` }).description).toContain(
+      'at most',
+    )
+  })
+
+  it('still rejects other control characters in the note', () => {
+    expect(validateSession({ title: 'Party', description: 'a\nb\u0007' }).description).toBe(
+      'Description contains unsupported characters',
+    )
+    expect(validateSession({ title: 'Party', description: 'a\u0085b' }).description).toBe(
+      'Description contains unsupported characters',
+    )
+  })
+
+  it('does not allow line breaks in the title', () => {
+    expect(normalizeSession({ title: 'a\nb', description: '' }).title).toBe('a b')
   })
 
   it('rejects control characters', () => {

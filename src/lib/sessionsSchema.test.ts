@@ -199,6 +199,13 @@ describe('rules enforced by the database itself', () => {
       { title: 'bell\u0007' },
       { description: 'y'.repeat(501) },
       { description: 'bell\u0007' },
+      { description: 'two  spaces' },
+      { description: 'trailing \nspace' },
+      { description: 'a\n\n\nb' },
+      { description: 'a\r\nb' },
+      { description: '\nleading' },
+      { description: 'trailing\n' },
+      { description: 'tab\tinside' },
       { status: 'bogus' },
       { drawStartedAt: '2026-01-01T00:00:00Z' },
     ]
@@ -206,6 +213,28 @@ describe('rules enforced by the database itself', () => {
       await expect(insertSession(overrides), JSON.stringify(overrides)).rejects.toMatchObject({ code: '23514' })
     }
     await expect(insertSession({ title: 'x'.repeat(80), description: 'y'.repeat(500) })).resolves.toBeTypeOf('string')
+    await expect(insertSession({ description: 'one line\nnext line\n\nafter a gap' })).resolves.toBeTypeOf('string')
+  })
+
+  it('tidies a note sent straight to create_session and keeps its line breaks', async () => {
+    const created = (await database.rpc('create_session', {
+      p_title: 'Party',
+      p_description: '  Budget:  20 euro \r\n\r\n\r\n\r\n Gifts on Dec 20 \t\n',
+    })) as Created
+
+    const { rows } = await database.db.query<{ description: string }>(
+      'select description from private.sessions where id = $1',
+      [created.id],
+    )
+
+    expect(rows[0].description).toBe('Budget: 20 euro\n\nGifts on Dec 20')
+  })
+
+  it('still rejects other control characters in a note sent to create_session', async () => {
+    const error = await failure(database.rpc('create_session', { p_title: 'Party', p_description: 'a\nb\u0007' }))
+
+    expect(error.message).toBe('app:invalid')
+    expect(detailsOf(error)).toEqual({ description: 'unsupported' })
   })
 
   it('rejects malformed participants', async () => {
