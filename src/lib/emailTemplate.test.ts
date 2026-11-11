@@ -1,7 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-
-const template = readFileSync(new URL('../../email-template.html', import.meta.url), 'utf8')
+import template from '../../email-template.html?raw'
 
 describe('email-template.html', () => {
   it('only uses the variables the app sends, with escaped double braces', () => {
