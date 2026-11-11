@@ -301,6 +301,58 @@ describe('AdminView draw', () => {
     return { api, ...session }
   }
 
+  it('sends through the server route with only ids and the message, and completes the session', async () => {
+    vi.stubEnv('VITE_EMAILJS_DRY_RUN', 'false')
+    const fetchSpy = vi.fn(async (_url: string, _init?: RequestInit) => Response.json({ ok: true }))
+    vi.stubGlobal('fetch', fetchSpy)
+    try {
+      const { api, id, adminToken, path } = await closedSession(2)
+      const { root } = await openAdmin(path, api)
+
+      button(root, 'Roll the dice').click()
+
+      await vi.waitFor(() => expect(text(root)).toContain('Completed.'), { timeout: 6000 })
+      expect(fetchSpy).toHaveBeenCalledTimes(2)
+      const bodies = fetchSpy.mock.calls.map(([, init]) => JSON.parse(String(init?.body)))
+      for (const body of bodies) {
+        expect(Object.keys(body).sort()).toEqual(['admin_token', 'message', 'participant_id', 'session_id'])
+        expect(body).toMatchObject({ session_id: id, admin_token: adminToken })
+      }
+      expect(new Set(bodies.map((body) => body.participant_id)).size).toBe(2)
+    } finally {
+      vi.unstubAllEnvs()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('shows the server reason for a failed email and lets you retry it', async () => {
+    vi.stubEnv('VITE_EMAILJS_DRY_RUN', 'false')
+    let calls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        ++calls === 1
+          ? Response.json({ error: 'send_limit', message: 'Limit reached' }, { status: 403 })
+          : Response.json({ ok: true }),
+      ),
+    )
+    try {
+      const { api, path } = await closedSession(2)
+      const { root } = await openAdmin(path, api)
+
+      button(root, 'Roll the dice').click()
+      await vi.waitFor(() => expect(text(root)).toContain('Retry failed'), { timeout: 6000 })
+      expect(text(root)).toContain('Limit reached')
+      expect(text(root)).not.toContain('Completed.')
+
+      button(root, 'Retry failed').click()
+      await vi.waitFor(() => expect(text(root)).toContain('Completed.'), { timeout: 6000 })
+    } finally {
+      vi.unstubAllEnvs()
+      vi.unstubAllGlobals()
+    }
+  })
+
   it('offers no draw while the session is open', async () => {
     const api = new InMemorySessionApi()
     const { path } = await newSession(api, 2)

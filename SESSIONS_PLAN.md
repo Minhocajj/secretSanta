@@ -161,6 +161,13 @@ No code changes. The goal is to have the current app online and a Supabase proje
 - Set `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY` and `EMAILJS_PRIVATE_KEY`, plus the Supabase URL and publishable key for the route, as runtime **Variables and Secrets** (not build variables). No `VITE_EMAILJS_*` value goes into the build. Previews don't inherit production variables or secrets (they need `previews.vars` and `npx wrangler preview base-config secret put <NAME>`), so by default a branch Preview can't send real email. The route should answer clearly when its secrets are missing.
 - In `src/lib/mailer.ts` add a `server` mode that posts to `/api/send`. Per decision 4, `/quick` stays a preview with no real emails, so the `VITE_EMAILJS_DRY_RUN` build variable is removed once sessions can send.
 - Last, in the EmailJS dashboard, turn on "Use Private Key" and "Allow EmailJS API for non-browser applications". After that, browser-only sends with the public key are rejected.
+- **Status:** built and checked locally (typecheck, 387 tests, build, `wrangler deploy --dry-run`). Not live yet. Steps for you, in this order:
+  1. Apply `supabase/migrations/20261111150000_authorize_send.sql` (SQL editor or `supabase db push`). It adds `authorize_send`, a per-person send count (cap 6, to leave room for retries) and a global cap of 100 sends per day, both editable in `private.settings` (`send_per_participant`, `send_per_day`).
+  2. In Cloudflare, add runtime **Variables and Secrets** (not build variables): `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `EMAILJS_SERVICE_ID`, `EMAILJS_TEMPLATE_ID`, `EMAILJS_PUBLIC_KEY` and the secret `EMAILJS_PRIVATE_KEY`.
+  3. Remove the `VITE_EMAILJS_DRY_RUN` build variable and redeploy. While it is `true`, sessions stay in dry-run.
+  4. Send a real email to yourself from a test session.
+  5. Only then, in the EmailJS dashboard, turn on "Use Private Key" and "Allow EmailJS API for non-browser applications" and check that a direct call with only the public key is rejected.
+- **What was built:** `worker/send.ts` (`POST /api/send`; answers 400, 403 `send_limit`, 404, 409, 413, 429 for EmailJS limits, 502, 503 `not_configured`), `worker/index.ts`, `wrangler.jsonc` (`main`, `run_worker_first: ["/api/*"]`), `sendViaServer` and `readSessionMailConfig` in `src/lib/mailer.ts`, and `Sender` now receives `{ participantId }`. `AdminView` sends through the route; `/quick` is unchanged. `.dev.vars.example` lists the local values for `wrangler dev`.
 - **Done when:**
   - route tests with a fake `fetch` and a fake RPC cover a wrong token, a session that isn't closed, a participant from another session, the send cap and EmailJS error mapping
   - one real email arrives from the deployed site
@@ -170,6 +177,7 @@ No code changes. The goal is to have the current app online and a Supabase proje
 
 - Rewrite the README, including privacy notes: names and emails are now stored for up to 60 days, admin links are kept in `localStorage` (`README.md:54`), and each message passes through the mail route and EmailJS on its way (keep EmailJS history off).
 - Update `.env.example` (`.env.example:6-8`) with the Supabase values and `VITE_PUBLIC_URL`.
+- **Status:** done. `README.md` now covers sessions, deployment (build variables vs runtime secrets, EmailJS switch-over order), send limits and the privacy notes; `.env.example` has the Supabase values and `VITE_PUBLIC_URL`. What remains is the live checks listed under Phases 2 to 6 and the manual end-to-end check below.
 
 ## Existing code that changes
 

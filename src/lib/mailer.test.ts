@@ -3,15 +3,20 @@ import {
   EMAILJS_ENDPOINT,
   MailError,
   createSender,
+  SEND_ENDPOINT,
   readMailConfig,
+  readSessionMailConfig,
   sendEmail,
   sendIntervalMs,
+  sendViaServer,
   type EmailParams,
   type LiveMailConfig,
 } from './mailer'
 
 const live: LiveMailConfig = { mode: 'live', serviceId: 'service_x', templateId: 'template_y', publicKey: 'public_z' }
 const params: EmailParams = { to_name: 'Alice', to_email: 'alice@example.com', message: 'Hello' }
+const context = { participantId: 7 }
+const session = { sessionId: 'sess-1', adminToken: 'tok-1' }
 
 afterEach(() => {
   vi.useRealTimers()
@@ -117,28 +122,94 @@ describe('createSender', () => {
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
 
-    await createSender({ mode: 'dry-run' })(params)
+    await createSender({ mode: 'dry-run' })(params, context)
 
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it('refuses to send when unconfigured', async () => {
-    await expect(createSender({ mode: 'unconfigured', missing: [] })(params)).rejects.toThrow(MailError)
+    await expect(createSender({ mode: 'unconfigured', missing: [] })(params, context)).rejects.toThrow(MailError)
   })
 
   it('uses the global fetch in live mode', async () => {
     const fetchSpy = vi.fn(async () => new Response('OK'))
     vi.stubGlobal('fetch', fetchSpy)
 
-    await createSender(live)(params)
+    await createSender(live)(params, context)
 
     expect(fetchSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('has no browser-side sender in server mode', async () => {
+    await expect(createSender({ mode: 'server' })(params, context)).rejects.toThrow(MailError)
+  })
+})
+
+describe('readSessionMailConfig', () => {
+  it('uses the server route unless dry-run is on', () => {
+    expect(readSessionMailConfig({})).toEqual({ mode: 'server' })
+    expect(readSessionMailConfig({ VITE_EMAILJS_DRY_RUN: 'false' })).toEqual({ mode: 'server' })
+    expect(readSessionMailConfig({ VITE_EMAILJS_DRY_RUN: 'true' })).toEqual({ mode: 'dry-run' })
+  })
+
+  it('ignores any EmailJS keys in the build', () => {
+    expect(readSessionMailConfig({ VITE_EMAILJS_PUBLIC_KEY: 'x', VITE_EMAILJS_SERVICE_ID: 'y' })).toEqual({ mode: 'server' })
+  })
+})
+
+describe('sendViaServer', () => {
+  it('posts only the ids and the message, never the recipient', async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ ok: true }))
+
+    await sendViaServer(session, params, context, fetchImpl)
+
+    const [url, init] = fetchImpl.mock.calls[0]
+    expect(url).toBe(SEND_ENDPOINT)
+    expect(init?.method).toBe('POST')
+    expect(JSON.parse(String(init?.body))).toEqual({
+      session_id: 'sess-1',
+      admin_token: 'tok-1',
+      participant_id: 7,
+      message: 'Hello',
+    })
+    expect(String(init?.body)).not.toContain('alice@example.com')
+  })
+
+  it('shows the server message and flags rate limiting only for 429', async () => {
+    const limited = await sendViaServer(session, params, context, async () =>
+      Response.json({ error: 'rate_limited', message: 'Slow down' }, { status: 429 }),
+    ).catch((caught: unknown) => caught as MailError)
+    const refused = await sendViaServer(session, params, context, async () =>
+      Response.json({ error: 'send_limit', message: 'Limit reached' }, { status: 403 }),
+    ).catch((caught: unknown) => caught as MailError)
+
+    expect(limited).toMatchObject({ message: 'Slow down', rateLimited: true })
+    expect(refused).toMatchObject({ message: 'Limit reached', rateLimited: false })
+  })
+
+  it('falls back to the status when the answer is not JSON', async () => {
+    const error = await sendViaServer(session, params, context, async () => new Response('<html>', { status: 500 })).catch(
+      (caught: unknown) => caught as MailError,
+    )
+
+    expect(error).toMatchObject({ message: 'The server rejected the request (500)', rateLimited: false })
+  })
+
+  it('turns network failures into a friendly error', async () => {
+    const fetchImpl = async (): Promise<Response> => {
+      throw new TypeError('Failed to fetch')
+    }
+
+    await expect(sendViaServer(session, params, context, fetchImpl)).rejects.toThrow(
+      'Could not reach the server - check your internet connection',
+    )
   })
 })
 
 describe('sendIntervalMs', () => {
   it('respects the EmailJS limit of one request per second in live mode', () => {
     expect(sendIntervalMs(live)).toBeGreaterThanOrEqual(1000)
+    expect(sendIntervalMs({ mode: 'server' })).toBeGreaterThanOrEqual(1000)
     expect(sendIntervalMs({ mode: 'dry-run' })).toBeLessThan(1000)
     expect(sendIntervalMs({ mode: 'unconfigured', missing: [] })).toBe(0)
   })

@@ -19,11 +19,11 @@ export interface DeliveryOptions {
 
 export type DeliveryUpdate = Pick<Delivery, 'status' | 'error'>
 
-async function sendWithRetry(params: EmailParams, options: DeliveryOptions): Promise<void> {
+async function sendWithRetry({ participantId, params }: Job, options: DeliveryOptions): Promise<void> {
   const { send, sleep, rateLimitRetries = DEFAULT_RATE_LIMIT_RETRIES, rateLimitBackoffMs = DEFAULT_RATE_LIMIT_BACKOFF_MS } = options
   for (let attempt = 0; ; attempt++) {
     try {
-      return await send(params)
+      return await send(params, { participantId })
     } catch (error) {
       const retryable = error instanceof MailError && error.rateLimited
       if (!retryable || attempt >= rateLimitRetries) throw error
@@ -41,7 +41,7 @@ export async function deliverAll(
     if (index > 0) await options.sleep(options.intervalMs)
     onUpdate(job.participantId, { status: 'sending' })
     try {
-      await sendWithRetry(job.params, options)
+      await sendWithRetry(job, options)
       onUpdate(job.participantId, { status: 'sent' })
     } catch (error) {
       const message = error instanceof MailError ? error.message : 'Unexpected error while sending'

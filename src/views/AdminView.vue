@@ -8,6 +8,7 @@ import ParticipantList from '../components/ParticipantList.vue'
 import { useSecretSanta } from '../composables/useSecretSanta'
 import { currentBase, joinLink } from '../lib/links'
 import { findAdminToken, forgetSession, rememberSession } from '../lib/localSessions'
+import { readSessionMailConfig, sendViaServer } from '../lib/mailer'
 import { SessionApiError, toFormErrors, type AdminView } from '../lib/sessionApi'
 import { sessionApiKey } from '../lib/sessionApiKey'
 import { MIN_PARTICIPANTS, UNEXPECTED_FORM_ERROR, type FormErrors } from '../lib/validation'
@@ -136,7 +137,13 @@ async function deleteSession() {
   busy.value = false
 }
 
+const mailConfig = readSessionMailConfig(import.meta.env)
 const santa = useSecretSanta({
+  config: mailConfig,
+  send:
+    mailConfig.mode === 'server'
+      ? (params, context) => sendViaServer({ sessionId: id.value, adminToken: token.value }, params, context)
+      : undefined,
   beforeSend: async () => {
     if (!api) throw new Error(UNEXPECTED_FORM_ERROR)
     await api.markDrawStarted(id.value, token.value)
