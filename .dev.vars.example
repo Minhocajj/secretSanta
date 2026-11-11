@@ -1,0 +1,10 @@
+# Local values for the mail route (worker/index.ts). Copy to ".dev.vars" and run
+# "npm run build && npx wrangler dev". On Cloudflare, set these as runtime
+# Variables and Secrets (not build variables).
+SUPABASE_URL=
+SUPABASE_PUBLISHABLE_KEY=
+EMAILJS_SERVICE_ID=
+EMAILJS_TEMPLATE_ID=
+EMAILJS_PUBLIC_KEY=
+# Secret: never commit it and never paste it into chat.
+EMAILJS_PRIVATE_KEY=

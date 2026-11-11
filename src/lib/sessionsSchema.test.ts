@@ -18,6 +18,7 @@ interface AdminView {
 
 const PUBLIC_FUNCTIONS = [
   'add_participant',
+  'authorize_send',
   'close_session',
   'complete_session',
   'create_session',
