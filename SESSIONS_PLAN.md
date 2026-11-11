@@ -146,6 +146,13 @@ No code changes. The goal is to have the current app online and a Supabase proje
 - On Close, fetch the frozen list, call `setParticipants`, and show `DrawPanel`.
 - Set `draw_started_at` on confirm. Warn before any re-draw, because earlier emails would be invalidated.
 - Mark `completed` when every email is delivered. Add "Delete session data".
+- **Status:** built and checked locally (typecheck, 338 tests, build). Emails still use the client-side mailer, so on the deployed site they are dry-run until Phase 6. Still open: try it on the deployed site.
+- **What was built:**
+  - `AdminView` shows `DrawPanel` when the session is closed, filled from the frozen list through `setParticipants`. It stays visible after completion until you leave the page.
+  - `useSecretSanta` has a `beforeSend` option and a `startError` ref. `AdminView` uses it to call `markDrawStarted` before any email goes out. If that call fails, nothing is sent and the reason is shown.
+  - When every email is delivered the session is marked `completed`. Nothing about who got whom is stored, so a reload shows only "Completed."
+  - A closed session with a started draw shows a warning before another roll, because the draw lives only in the browser. Reopen is hidden once a draw has started, or while a draw is under review.
+  - "Delete session" (Phase 4) is the "Delete session data" action.
 
 ### Phase 6: server-side mail route
 

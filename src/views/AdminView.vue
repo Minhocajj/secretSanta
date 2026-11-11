@@ -2,8 +2,10 @@
 import { computed, inject, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import CopyField from '../components/CopyField.vue'
+import DrawPanel from '../components/DrawPanel.vue'
 import ParticipantForm from '../components/ParticipantForm.vue'
 import ParticipantList from '../components/ParticipantList.vue'
+import { useSecretSanta } from '../composables/useSecretSanta'
 import { currentBase, joinLink } from '../lib/links'
 import { findAdminToken, forgetSession, rememberSession } from '../lib/localSessions'
 import { SessionApiError, toFormErrors, type AdminView } from '../lib/sessionApi'
@@ -134,8 +136,40 @@ async function deleteSession() {
   busy.value = false
 }
 
+const santa = useSecretSanta({
+  beforeSend: async () => {
+    if (!api) throw new Error(UNEXPECTED_FORM_ERROR)
+    await api.markDrawStarted(id.value, token.value)
+  },
+})
+const { phase: drawPhase, busy: drawBusy, failedCount, deliveries } = santa
+
+watch(
+  [view, drawPhase],
+  ([current]) => {
+    if (current?.session.status === 'closed') santa.setParticipants(current.participants)
+  },
+  { immediate: true },
+)
+
+watch([drawPhase, failedCount], ([phase, failed]) => {
+  if (phase === 'done' && failed === 0 && deliveries.value.length && view.value?.session.status === 'closed') {
+    void run(() => api!.completeSession(id.value, token.value))
+  }
+})
+
+const showDraw = computed(() => {
+  const status = view.value?.session.status
+  return status === 'closed' || (status === 'completed' && drawPhase.value !== 'edit')
+})
+const warnRedraw = computed(
+  () => view.value?.session.status === 'closed' && Boolean(view.value.session.drawStartedAt) && drawPhase.value === 'edit',
+)
+
 const enoughParticipants = computed(() => (view.value?.participants.length ?? 0) >= MIN_PARTICIPANTS)
-const canReopen = computed(() => view.value?.session.status === 'closed' && !view.value.session.drawStartedAt)
+const canReopen = computed(
+  () => view.value?.session.status === 'closed' && !view.value.session.drawStartedAt && drawPhase.value === 'edit',
+)
 </script>
 
 <template>
@@ -197,13 +231,24 @@ const canReopen = computed(() => view.value?.session.status === 'closed' && !vie
       />
     </section>
 
+    <template v-if="showDraw">
+      <p v-if="warnRedraw" class="banner banner--warning" role="alert">
+        A draw was already started for this session. Rolling again creates new matches, so anyone who already got an
+        email would have an outdated one.
+      </p>
+      <DrawPanel :santa="santa" />
+    </template>
+
     <section class="card" aria-labelledby="admin-manage-title">
       <h2 id="admin-manage-title">Manage</h2>
       <p v-if="view.session.status === 'open'" class="muted">
         Close the session when everyone has joined. Nobody can join after that, so the list stays fixed for the draw.
       </p>
-      <p v-else-if="view.session.status === 'closed' && !canReopen" class="muted">
+      <p v-else-if="view.session.status === 'closed' && view.session.drawStartedAt" class="muted">
         The draw has started, so this session can't be reopened.
+      </p>
+      <p v-else-if="view.session.status === 'closed' && !canReopen" class="muted">
+        To reopen the session, first go back to the participants in the draw panel.
       </p>
 
       <p v-if="actionError" class="form__error" role="alert">{{ actionError }}</p>
@@ -213,19 +258,25 @@ const canReopen = computed(() => view.value?.session.status === 'closed' && !vie
           v-if="view.session.status === 'open'"
           type="button"
           class="btn btn--primary"
-          :disabled="busy || !enoughParticipants"
+          :disabled="busy || drawBusy || !enoughParticipants"
           @click="close"
         >
           Close session
         </button>
-        <button v-else-if="canReopen" type="button" class="btn btn--secondary" :disabled="busy" @click="reopen">
+        <button
+          v-else-if="canReopen"
+          type="button"
+          class="btn btn--secondary"
+          :disabled="busy || drawBusy"
+          @click="reopen"
+        >
           Reopen session
         </button>
         <button
           v-if="!confirmingDelete"
           type="button"
           class="btn btn--ghost"
-          :disabled="busy"
+          :disabled="busy || drawBusy"
           @click="confirmingDelete = true"
         >
           Delete session

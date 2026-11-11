@@ -3,7 +3,7 @@ import { deliverAll, type Job } from '../lib/delivery'
 import { drawAssignments, secureRandomInt, type RandomInt } from '../lib/draw'
 import { createSender, readMailConfig, sendIntervalMs, type MailConfig, type Sender } from '../lib/mailer'
 import { buildMessage } from '../lib/message'
-import { MIN_PARTICIPANTS, hasErrors, normalizeInput, validateParticipant, type ParticipantErrors } from '../lib/validation'
+import { MIN_PARTICIPANTS, UNEXPECTED_FORM_ERROR, hasErrors, normalizeInput, validateParticipant, type ParticipantErrors } from '../lib/validation'
 import type { Assignment, Delivery, Pair, Participant, ParticipantInput } from '../types'
 
 export type Phase = 'edit' | 'review' | 'sending' | 'done'
@@ -14,6 +14,7 @@ export interface SecretSantaOptions {
   sleep?: (ms: number) => Promise<void>
   randomInt?: RandomInt
   intervalMs?: number
+  beforeSend?: () => Promise<void>
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -25,12 +26,14 @@ export function useSecretSanta(options: SecretSantaOptions = {}) {
   const randomInt = options.randomInt ?? secureRandomInt
   const intervalMs = options.intervalMs ?? sendIntervalMs(config)
   const canSend = config.mode !== 'unconfigured'
+  const beforeSend = options.beforeSend
 
   const participants = ref<Participant[]>([])
   const showResults = ref(false)
   const phase = ref<Phase>('edit')
   const pairs = ref<Pair[]>([])
   const deliveries = ref<Delivery[]>([])
+  const startError = ref('')
   let assignments: Assignment[] = []
   let nextId = 1
 
@@ -85,6 +88,15 @@ export function useSecretSanta(options: SecretSantaOptions = {}) {
   }
 
   async function deliver(retryOnly: boolean) {
+    startError.value = ''
+    if (beforeSend) {
+      try {
+        await beforeSend()
+      } catch (error) {
+        startError.value = error instanceof Error && error.message ? error.message : UNEXPECTED_FORM_ERROR
+        return
+      }
+    }
     const jobs = queueJobs(retryOnly)
     phase.value = 'sending'
     try {
@@ -125,6 +137,7 @@ export function useSecretSanta(options: SecretSantaOptions = {}) {
     if (phase.value !== 'review') return
     assignments = []
     pairs.value = []
+    startError.value = ''
     phase.value = 'edit'
   }
 
@@ -145,6 +158,7 @@ export function useSecretSanta(options: SecretSantaOptions = {}) {
     phase,
     pairs,
     deliveries,
+    startError,
     busy,
     failedCount,
     canRoll,

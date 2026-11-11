@@ -290,3 +290,123 @@ describe('AdminView', () => {
     expect(title(root)).toBe('Office party')
   })
 })
+
+describe('AdminView draw', () => {
+  const waitFor = (fn: () => void) => vi.waitFor(fn, { timeout: 3000 })
+
+  async function closedSession(people = 2) {
+    const api = new InMemorySessionApi()
+    const session = await newSession(api, people)
+    await api.closeSession(session.id, session.adminToken)
+    return { api, ...session }
+  }
+
+  it('offers no draw while the session is open', async () => {
+    const api = new InMemorySessionApi()
+    const { path } = await newSession(api, 2)
+
+    const { root } = await openAdmin(path, api)
+
+    expect(() => button(root, 'Roll the dice')).toThrow()
+  })
+
+  it('offers the draw once the session is closed, using the frozen list', async () => {
+    const { api, path } = await closedSession(3)
+
+    const { root } = await openAdmin(path, api)
+
+    expect(button(root, 'Roll the dice').disabled).toBe(false)
+    expect(text(root)).not.toContain('Add at least')
+  })
+
+  it('draws silently, marks the draw started, sends to everyone and completes the session', async () => {
+    const { api, id, adminToken, path } = await closedSession(2)
+    const { root } = await openAdmin(path, api)
+
+    button(root, 'Roll the dice').click()
+
+    await waitFor(() => expect(text(root)).toContain('2 of 2 emails sent'))
+    await waitFor(() => expect(text(root)).toContain('Completed.'))
+    expect((await api.getAdminView(id, adminToken)).session).toMatchObject({ status: 'completed' })
+    expect((await api.getAdminView(id, adminToken)).session.drawStartedAt).not.toBeNull()
+    expect(root.querySelector('.pairs')).toBeNull()
+    expect(text(root)).not.toContain('is Santa for')
+  })
+
+  it('shows the draw for review, allows a re-roll, and sends only after confirming', async () => {
+    const { api, id, adminToken, path } = await closedSession(3)
+    const { root } = await openAdmin(path, api)
+    const box = root.querySelector<HTMLInputElement>('.check input')!
+    box.checked = true
+    box.dispatchEvent(new Event('change'))
+    await settle()
+
+    button(root, 'Roll the dice').click()
+    await settle()
+    expect(root.querySelectorAll('.pairs li')).toHaveLength(3)
+    expect((await api.getAdminView(id, adminToken)).session.drawStartedAt).toBeNull()
+
+    button(root, 'Re-roll').click()
+    await settle()
+    expect(root.querySelectorAll('.pairs li')).toHaveLength(3)
+
+    button(root, 'Confirm and send emails').click()
+    await waitFor(() => expect(text(root)).toContain('3 of 3 emails sent'))
+    await waitFor(() => expect(text(root)).toContain('Completed.'))
+  })
+
+  it('cannot reopen while a draw is under review, only after going back', async () => {
+    const { api, path } = await closedSession(2)
+    const { root } = await openAdmin(path, api)
+    const box = root.querySelector<HTMLInputElement>('.check input')!
+    box.checked = true
+    box.dispatchEvent(new Event('change'))
+    await settle()
+    button(root, 'Roll the dice').click()
+    await settle()
+
+    expect(() => button(root, 'Reopen session')).toThrow()
+
+    button(root, 'Back to participants').click()
+    await settle()
+
+    expect(button(root, 'Reopen session')).toBeDefined()
+  })
+
+  it('sends nothing and shows the error when the draw cannot be marked as started', async () => {
+    const { api, id, adminToken, path } = await closedSession(2)
+    vi.spyOn(api, 'markDrawStarted').mockRejectedValue(new SessionApiError('conflict'))
+    const { root } = await openAdmin(path, api)
+
+    button(root, 'Roll the dice').click()
+    await settle()
+    await settle()
+
+    expect(text(root)).toContain('not possible in the current state')
+    expect(text(root)).not.toContain('emails sent')
+    expect((await api.getAdminView(id, adminToken)).session.status).toBe('closed')
+  })
+
+  it('warns before rolling again when a draw was already started, and cannot reopen', async () => {
+    const { api, id, adminToken, path } = await closedSession(2)
+    await api.markDrawStarted(id, adminToken)
+
+    const { root } = await openAdmin(path, api)
+
+    expect(text(root)).toContain('A draw was already started for this session')
+    expect(button(root, 'Roll the dice')).toBeDefined()
+    expect(() => button(root, 'Reopen session')).toThrow()
+  })
+
+  it('shows a completed session without a draw panel or any pairing', async () => {
+    const { api, id, adminToken, path } = await closedSession(2)
+    await api.markDrawStarted(id, adminToken)
+    await api.completeSession(id, adminToken)
+
+    const { root } = await openAdmin(path, api)
+
+    expect(text(root)).toContain('Completed.')
+    expect(() => button(root, 'Roll the dice')).toThrow()
+    expect(root.querySelector('.pairs')).toBeNull()
+  })
+})

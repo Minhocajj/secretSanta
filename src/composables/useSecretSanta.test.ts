@@ -318,3 +318,58 @@ describe('starting over', () => {
     await rolling
   })
 })
+
+describe('beforeSend hook', () => {
+  it('runs before any email is sent', async () => {
+    const order: string[] = []
+    const { santa } = setup({
+      beforeSend: async () => {
+        order.push('hook')
+      },
+      send: async () => {
+        order.push('send')
+      },
+    })
+
+    await santa.roll()
+
+    expect(order[0]).toBe('hook')
+    expect(order.filter((step) => step === 'send')).toHaveLength(4)
+    expect(santa.startError.value).toBe('')
+  })
+
+  it('sends nothing and shows the reason when the hook fails, staying in review', async () => {
+    const { santa, sent } = setup({
+      beforeSend: async () => {
+        throw new Error('Not allowed right now')
+      },
+    })
+    santa.showResults.value = true
+    await santa.roll()
+
+    await santa.confirm()
+
+    expect(sent).toEqual([])
+    expect(santa.phase.value).toBe('review')
+    expect(santa.startError.value).toBe('Not allowed right now')
+  })
+
+  it('uses a generic message for unexpected failures and clears the error on success', async () => {
+    let fail: unknown = 'boom'
+    const { santa, sent } = setup({
+      beforeSend: async () => {
+        if (fail) throw fail
+      },
+    })
+    santa.showResults.value = true
+    await santa.roll()
+
+    await santa.confirm()
+    expect(santa.startError.value).toBe('Something went wrong. Please try again.')
+
+    fail = null
+    await santa.confirm()
+    expect(santa.startError.value).toBe('')
+    expect(sent).toHaveLength(4)
+  })
+})
