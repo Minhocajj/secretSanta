@@ -228,6 +228,38 @@ body {
   background: #f4efe3;
 }
 
+.btn--danger {
+  color: #fff;
+  background: var(--danger);
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: #8f1d17;
+}
+
+.copy {
+  display: flex;
+  gap: 8px;
+}
+
+.copy input {
+  flex: 1;
+  min-width: 0;
+}
+
+.hero-link {
+  margin: 0;
+  text-align: center;
+}
+
+.hero-link a {
+  color: rgb(255 255 255 / 0.85);
+}
+
+.banner p {
+  margin: 0 0 8px;
+}
+
 .btn--large {
   padding: 14px 26px;
   font-size: 1.1rem;

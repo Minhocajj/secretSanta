@@ -15,6 +15,7 @@ const {
   phase,
   pairs,
   deliveries,
+  startError,
   failedCount,
   canRoll,
   hasUndeliveredDraw,
@@ -64,6 +65,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeLeavi
     <p v-else-if="!canRoll && !canSend" class="muted">
       Sending is not configured. Check "Show results to me" to preview a draw.
     </p>
+    <p v-if="startError" class="form__error" role="alert">{{ startError }}</p>
   </section>
 
   <section v-else-if="phase === 'review'" class="card" aria-labelledby="results-title">
@@ -77,6 +79,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeLeavi
       <button type="button" class="btn btn--ghost" @click="backToEdit">Back to participants</button>
     </div>
     <p v-if="!canSend" class="muted">Configure EmailJS to enable sending.</p>
+    <p v-if="startError" class="form__error" role="alert">{{ startError }}</p>
   </section>
 
   <template v-else>

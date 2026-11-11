@@ -31,10 +31,26 @@ describe('App', () => {
     expect(root.querySelector('#participants-title')).toBeNull()
   })
 
-  it.each(['/', '/admin/some-id', '/nowhere/at/all'])('opens the quick flow for %s', async (path) => {
-    const { root, router } = await mountAt(path)
+  it('opens the home page at /', async () => {
+    const { root, router } = await mountAt('/')
 
-    expect(router.currentRoute.value.path).toBe('/quick')
-    expect(root.querySelector('#participants-title')).not.toBeNull()
+    expect(router.currentRoute.value.path).toBe('/')
+    expect(root.querySelector('#create-title')).not.toBeNull()
+    expect(root.querySelector('a[href="/quick"]')).not.toBeNull()
+  })
+
+  it('keeps /admin/:id as its own page', async () => {
+    const { root, router } = await mountAt('/admin/some-id')
+
+    expect(router.currentRoute.value.path).toBe('/admin/some-id')
+    expect(root.querySelector('#admin-title')).not.toBeNull()
+    expect(root.querySelector('#participants-title')).toBeNull()
+  })
+
+  it('opens the home page for unknown paths', async () => {
+    const { root, router } = await mountAt('/nowhere/at/all')
+
+    expect(router.currentRoute.value.path).toBe('/')
+    expect(root.querySelector('#create-title')).not.toBeNull()
   })
 })

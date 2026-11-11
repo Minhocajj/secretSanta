@@ -19,7 +19,7 @@ export function unmountAll() {
   }
 }
 
-export const clean = (text: string | null) => (text ?? '').replace(/\s+/g, ' ').trim()
+export const clean = (text: string | null | undefined) => (text ?? '').replace(/\s+/g, ' ').trim()
 
 export function button(root: HTMLElement, label: string) {
   const found = [...root.querySelectorAll('button')].find((candidate) => clean(candidate.textContent).includes(label))
