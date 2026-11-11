@@ -134,6 +134,12 @@ No code changes. The goal is to have the current app online and a Supabase proje
   - participant list (refresh on focus plus polling) with add and remove
   - **Close** (needs at least `MIN_PARTICIPANTS`), **Reopen** and **Delete session**
 - The link base is `VITE_PUBLIC_URL`, falling back to `location.origin`. Without that, a session created on localhost produces a useless link.
+- **Status:** built and checked locally (typecheck, 327 tests, build). Still open: try it on the deployed site, and optionally set the `VITE_PUBLIC_URL` build variable.
+- **What was built:**
+  - `/` is `HomeView` (create form, links with the save-the-admin-link warning, "Sessions on this device" with Forget, link to `/quick`). Unknown paths now redirect to `/`.
+  - `/admin/:id` is `AdminView`, lazy-loaded. The token comes from the URL fragment, else from the device list. It refreshes on window focus and every 10 s, and lets you add and remove participants. **Close** needs at least 2 participants, **Reopen** is hidden once a draw has started, and **Delete** asks for confirmation first.
+  - `src/lib/localSessions.ts` (device list in `localStorage`, key `secret-santa:sessions`, max 50, tolerant of damaged data), `src/lib/links.ts` (the admin token stays in the fragment), `CopyField.vue`.
+  - The draw itself is Phase 5: after Close, `AdminView` only shows the frozen list.
 
 ### Phase 5: close, draw, complete
 
