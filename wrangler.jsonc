@@ -7,5 +7,12 @@
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]
   },
+  "vars": {
+    "EMAILJS_PUBLIC_KEY": "NsceErLCQv3nxpHaN",
+    "EMAILJS_SERVICE_ID": "service_5r88e0s",
+    "EMAILJS_TEMPLATE_ID": "template_37c80te",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_ewvrAmH6ulN7yazUwKs-tg_m_vxANvL",
+    "SUPABASE_URL": "https://fhdqkhtcybwbtbvltjjv.supabase.co"
+  },
   "previews": {}
 }
