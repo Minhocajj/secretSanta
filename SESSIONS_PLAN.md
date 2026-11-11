@@ -1,6 +1,6 @@
 # Plan: sessions with a shareable join link and a private admin link
 
-> **Status:** decisions 1, 2, 3 and 4 are settled, and 5 (EmailJS) needs a follow-up before Phase 6 (see [Decisions](#decisions)). Phase 0 (setup) is nearly done: the app is deployed as a Cloudflare Worker and Supabase is ready. The dry-run build variable and a check from an unblocked network are left.
+> **Status:** decisions 1, 2, 3 and 4 are settled, and 5 (EmailJS) needs a follow-up before Phase 6 (see [Decisions](#decisions)). Phase 0 (setup) is done: the app is deployed as a Cloudflare Worker in dry-run mode and Supabase is ready. Phase 1 is next.
 > File paths are relative to the repo root. Line numbers refer to the code at the time of writing.
 
 ## Goal
@@ -16,8 +16,8 @@ A no-backend workaround (participants email their data to the admin, who pastes 
 ## Recommended architecture
 
 - **Supabase** (hosted Postgres, Row Level Security, RPC functions) stores sessions and participants. Supabase Auth is not used because there are no accounts.
-- **Cloudflare Workers** (free, static assets, built from GitHub by Workers Builds) serves the Vue app. A Worker returns 404 for unknown paths unless `assets.not_found_handling` is `single-page-application`, so Phase 1 adds a Wrangler config for the `/join/...` and `/admin/...` deep links ([docs](https://developers.cloudflare.com/workers/static-assets/routing/single-page-application/)).
-- **Unchanged:** the draw, delivery queue, EmailJS sending, validation and message building still run in the admin's browser, so silent mode stays private. Pairings are never stored.
+- **Cloudflare Workers** (free, static assets, built from GitHub by Workers Builds) serves the Vue app. A Worker returns 404 for unknown paths unless `assets.not_found_handling` is `single-page-application`. The current deploy already serves the app for deep links like `/join/...`, and Phase 1 commits a Wrangler config so that stays pinned ([docs](https://developers.cloudflare.com/workers/static-assets/routing/single-page-application/)).
+- **Unchanged:** the draw, delivery queue, validation and message building still run in the admin's browser, so silent mode stays private. Pairings are never stored. Only the sending moves to a small server route (see decision 5).
 
 Alternatives considered:
 
@@ -63,15 +63,15 @@ There are no accounts: whoever holds the admin link is the admin of that session
 
 ## Phases
 
-### Phase 0: setup (you), nearly done
+### Phase 0: setup (you), done
 
 No code changes. The goal is to have the current app online and a Supabase project ready. Phase 1 doesn't depend on this and can run in parallel.
 
-1. **Deploy the current app to Cloudflare** (deployed, dry-run still to do):
-   - The dashboard created a Worker with static assets, built from this repository by Workers Builds, at `https://secretsanta.tokmakov-musubi.workers.dev`. The repo has no Wrangler config yet, so the build and deploy commands exist only in the dashboard (Settings > Build). Phase 1 adds the config.
-   - Add the build variable `VITE_EMAILJS_DRY_RUN=true` under **Settings > Build > Build variables and secrets**, then retry the build. Vite only sees build variables, not the runtime Variables & Secrets, and the value is baked in at build time ([docs](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)). If the page has separate Production and Preview sections, add it to both. No EmailJS keys go online and no email is sent.
-   - **Done when:** the URL, opened from a network that doesn't block it, loads with the dry-run banner and a 3-person draw works end to end.
-   - **Known issue:** the work network's web filter blocks this hostname ("Web Page Blocked"), so the site can't be tested from that network. Test from a personal device or network, and see the host risk under decision 3.
+1. **Deploy the current app to Cloudflare** (done):
+   - The dashboard created a Worker with static assets, built from this repository by Workers Builds, at `https://secretsanta.tokmakov-musubi.workers.dev`. Build command `npm run build`, Deploy command `npx wrangler deploy` (the dashboard defaults). The repo has no Wrangler config, so these settings live only in the dashboard.
+   - The build variable `VITE_EMAILJS_DRY_RUN=true` is set under **Settings > Build > Build variables and secrets**. Vite only sees build variables, not the runtime Variables & Secrets, and the value is baked in at build time ([docs](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)). No EmailJS keys go online and no email is sent.
+   - Checked: the deployed bundle is byte-identical (same SHA-256) to a local build with `VITE_EMAILJS_DRY_RUN=true`, and that is the only `VITE_` value in it. A deep link (`/join/test`) returns the app, so SPA fallback already works on the deployed Worker.
+   - The work network's web filter blocked this hostname at first ("Web Page Blocked") and no longer did on a later check. Participants use personal devices, so it doesn't affect them. If the block returns, test from a personal device.
 2. **Create a Supabase project** (free, done), in the region closest to your participants:
    - Save the database password in a password manager.
    - Copy the **Project URL** and the **publishable key** (`sb_publishable_…`) from the project's Connect dialog (or Settings > API Keys). The legacy `anon` key is being deprecated ([API keys](https://supabase.com/docs/guides/getting-started/api-keys)).
@@ -82,12 +82,12 @@ No code changes. The goal is to have the current app online and a Supabase proje
 ### Phase 1: foundations, no behavior change
 
 - Add `vue-router` (history mode). `App.vue` becomes a shell, and today's flow moves to `/quick`.
-- Add `wrangler.jsonc` with `name` `secretsanta` (it must match the Worker's name in the dashboard), `compatibility_date` set to the day of writing, `assets.directory` `./dist` and `assets.not_found_handling` `single-page-application`. Without SPA mode, `/join/...` and `/admin/...` deep links return 404 on a Worker; whether the current dashboard-only deploy has it is unchecked. Confirm that the Deploy command in Settings > Build is `npx wrangler deploy`, so it uses the file.
+- Add `wrangler.jsonc` to pin what the dashboard-only deploy does today: `name` `secretsanta` (it must match the Worker's name in the dashboard), `compatibility_date` set to the day of writing, `assets.directory` `./dist` and `assets.not_found_handling` `single-page-application`. Deep links already work without it, so this is for reproducibility, not a fix. Compare with the latest build log if it shows a generated config. The Build and Deploy commands stay as they are.
 - Extract the roll, review and delivery cards into a `DrawPanel` component for reuse.
 - Add a `SessionApi` interface and an `InMemorySessionApi` fake. This uses the same injection style as `send`, `sleep` and `randomInt`.
 - Make `ParticipantForm` submit asynchronously and show server errors such as "email taken" or "session closed". Make `ParticipantList` removal optional or read-only.
 - Add an additive `setParticipants()` to `useSecretSanta`, so its sync API and tests stay valid.
-- **Done when:** all existing tests pass, typecheck is clean, and reloading a deep link such as `/quick` opens the app on the deployed URL (checked from an unblocked network).
+- **Done when:** all existing tests pass, typecheck is clean, and reloading a deep link such as `/quick` opens the app on the deployed URL.
 
 ### Phase 2: backend
 
@@ -122,7 +122,7 @@ No code changes. The goal is to have the current app online and a Supabase proje
 
 ### Phase 6: hardening, docs, deploy
 
-- Handle the EmailJS exposure (see decision 5).
+- Build the server-side mail route and switch the deployed app from dry-run to live sending (see decision 5).
 - Rewrite the README, including privacy notes: names and emails are now stored for up to 60 days, and admin links are kept in `localStorage` (`README.md:54`).
 - Update `.env.example` (`.env.example:6-8`) with the Supabase values and `VITE_PUBLIC_URL`.
 
@@ -141,16 +141,20 @@ No code changes. The goal is to have the current app online and a Supabase proje
 2. **Admin model:** a secret admin link per session, no accounts, and anyone can create a session. Settled. This replaces the single admin login from the first draft; Data and rules describes the consequences (RPC-only access, hashed admin token, abuse limits, automatic expiry).
 3. **Host:** a free host for the pilot, deploying the current app first (Phase 0). Settled: **Cloudflare Workers** with static assets (the dashboard created a Worker, not a Pages project):
    - Free plan: requests to static assets are free and unlimited ([billing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/)), and Workers Builds allows 3,000 build minutes per month with 1 concurrent build ([limits](https://developers.cloudflare.com/workers/ci-cd/builds/limits-and-pricing/)).
-   - SPA routing needs one Wrangler config (Phase 1).
-   - **Risk:** corporate web filters can block `workers.dev` hostnames, and the work network here blocks the current one. If participants will open the link from corporate networks, test the join link from those networks before launch. A custom domain is the fallback.
+   - SPA routing is already on in the deployed Worker, and Phase 1 pins it in a Wrangler config.
+   - **Risk:** corporate web filters can block `workers.dev` hostnames, and the work network did at first. Participants will use personal devices, so a custom domain isn't needed now. If that changes, test the join link from the participants' networks before launch.
    - Netlify's free plan is a 300-credit hard cap where each production deploy costs 15 credits. That allows at most 20 production deploys a month (fewer once traffic is counted), and when the credits run out every project is paused ([credits](https://docs.netlify.com/manage/accounts-and-billing/billing/billing-for-credit-based-plans/how-credits-work/)).
 4. **Keep the current local flow at `/quick`:** yes. Settled.
-5. **EmailJS exposure: needs a follow-up before Phase 6.**
-   - **The problem:** the template uses `{{to_email}}` and `{{message}}` (`README.md:22-24`). Once the site is public, anyone who copies the bundled key could send arbitrary text to arbitrary addresses from the owner's mailbox. Sessions created by anyone also share the owner's EmailJS quota (200 requests per month on the free plan, `README.md:43`).
+5. **EmailJS exposure: direction is a server-side sender, provider still to pick.**
+   - **The problem:** the template uses `{{to_email}}` and `{{message}}` (`README.md:22-24`). Once the site is public, anyone who copies the bundled key could send arbitrary text to arbitrary addresses from the owner's mailbox. EmailJS's FAQ calls an exposed Public Key harmless because it can only trigger predefined templates, but this template accepts any recipient and any text, so that argument doesn't apply. Sessions created by anyone also share the owner's EmailJS quota (200 requests per month on the free plan, `README.md:43`).
    - **The earlier default fix no longer fits.** It assumed one owner login that could load the EmailJS values from an owner-only database row. With link-based admins anyone can get an admin token by creating a session, so such a row would protect nothing.
    - **Proposed replacement:**
-     - Pilot: set the EmailJS origin allow-list to the `workers.dev` domain before putting the EmailJS values in the build variables, keep the pilot URL unlisted, and stay in dry-run until then.
-     - Before a public launch: bring-your-own EmailJS credentials per admin, entered in the admin page and kept only in that browser (`readMailConfig` already takes a plain record), or a server-side sender.
+     - The origin allow-list is not an option on the Free plan: EmailJS's pricing page lists "Whitelist" from the Personal plan ($9 per month) upwards. Even where available it reduces the exposure rather than removing it, because the key stays visible in the bundle. Keep all EmailJS values out of the deployed build, and stay in dry-run there.
+     - Per-admin credentials were rejected, so sending moves to a small server route: a Worker in the same Cloudflare deployment, with the mail secret stored as a runtime secret (not a build variable). Before each send the route asks a Supabase RPC whether this admin may email this recipient: valid admin token, session closed, recipient belongs to the session, per-session send cap. The draw and delivery queue stay in the browser. The route does not store pairings or log message bodies.
+     - Provider without a domain: EmailJS called from the server with its private key (200 requests per month, history can stay off). It needs "Use Private Key" and "Allow EmailJS API for non-browser applications" under Account > Security, so check that a Free account offers both before building. Fallback: Gmail SMTP with an app password from the Worker (Google documents 500 emails per day for personal accounts; needs 2-Step Verification).
+     - Provider with a domain: Resend (3,000 per month, 100 per day; a verified domain is required to email anyone but yourself) or Brevo (300 per day).
+     - Cloudflare Email Service is not free: sending to arbitrary recipients needs Workers Paid.
+     - Until the route exists, real emails work by running the app locally with a `.env`, as today. Set up the EmailJS account and test it that way.
 
 Out of scope for now: participant self-edit or withdraw, exclusion rules (such as couples), deadline auto-close, confirmation emails to joiners, QR code, recovering a lost admin link.
 
@@ -169,4 +173,4 @@ Out of scope for now: participant self-edit or withdraw, exclusion rules (such a
 
 ## Next step
 
-Finish Phase 0: add the dry-run build variable, retry the build, and check the site from a network that doesn't block it. Phase 1 can start in parallel on a branch, because it needs no backend access.
+Phase 0 is done. Start Phase 1 on a branch; it needs no backend access.
