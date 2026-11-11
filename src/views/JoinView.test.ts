@@ -52,6 +52,16 @@ describe('JoinView', () => {
     expect(text(root)).toContain('deleted automatically')
   })
 
+  it('shows a multi-line note with its line breaks', async () => {
+    const api = new InMemorySessionApi()
+    const { path } = await newSession(api, 'Office party', 'Budget 20 EUR\n\nGifts on Dec 20')
+
+    const { root } = await open(path, api)
+
+    const note = root.querySelector('.note')
+    expect(note?.textContent).toBe('Budget 20 EUR\n\nGifts on Dec 20')
+  })
+
   it('adds the participant and shows a confirmation', async () => {
     const api = new InMemorySessionApi()
     const { id, adminToken, path } = await newSession(api)

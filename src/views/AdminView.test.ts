@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMemoryHistory } from 'vue-router'
 import type { Plugin } from 'vue'
 import App from '../App.vue'
+import { onCelebrate } from '../lib/celebrate'
 import { InMemorySessionApi } from '../lib/inMemorySessionApi'
 import { findAdminToken, loadSessions, rememberSession } from '../lib/localSessions'
 import { SessionApiError, type SessionApi } from '../lib/sessionApi'
@@ -10,7 +11,10 @@ import { sessionApiKey } from '../lib/sessionApiKey'
 import { createAppRouter } from '../router'
 import { button, clean, mountComponent, settle, typeInto, unmountAll } from '../testing'
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null)
+})
 afterEach(() => {
   unmountAll()
   vi.restoreAllMocks()
@@ -383,6 +387,40 @@ describe('AdminView draw', () => {
     expect((await api.getAdminView(id, adminToken)).session.drawStartedAt).not.toBeNull()
     expect(root.querySelector('.pairs')).toBeNull()
     expect(text(root)).not.toContain('is Santa for')
+  })
+
+  it('celebrates with fireworks exactly once when the session completes', async () => {
+    const celebrations = vi.fn()
+    const stop = onCelebrate(celebrations)
+    try {
+      const { api, path } = await closedSession(2)
+      const { root } = await openAdmin(path, api)
+      expect(celebrations).not.toHaveBeenCalled()
+
+      button(root, 'Roll the dice').click()
+      await waitFor(() => expect(text(root)).toContain('Completed.'))
+
+      expect(celebrations).toHaveBeenCalledTimes(1)
+    } finally {
+      stop()
+    }
+  })
+
+  it('does not celebrate when an already completed session is opened', async () => {
+    const celebrations = vi.fn()
+    const stop = onCelebrate(celebrations)
+    try {
+      const { api, id, adminToken, path } = await closedSession(2)
+      await api.markDrawStarted(id, adminToken)
+      await api.completeSession(id, adminToken)
+
+      const { root } = await openAdmin(path, api)
+
+      expect(text(root)).toContain('Completed.')
+      expect(celebrations).not.toHaveBeenCalled()
+    } finally {
+      stop()
+    }
   })
 
   it('shows the draw for review, allows a re-roll, and sends only after confirming', async () => {

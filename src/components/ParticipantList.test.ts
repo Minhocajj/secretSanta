@@ -30,6 +30,20 @@ describe('ParticipantList', () => {
     expect(root.querySelector('button')).toBeNull()
   })
 
+  it('shows a formatted gift idea with a link that opens in a new tab', () => {
+    const people: Participant[] = [
+      { id: 1, name: 'Alice', email: 'alice@example.com', gift: '**Wishlist**\n- a book\n- [socks](https://example.com/s)' },
+    ]
+    const root = mountComponent(ParticipantList, { participants: people })
+
+    expect(root.querySelector('.participant__gift strong')?.textContent).toBe('Wishlist')
+    expect(root.querySelectorAll('.participant__gift li')).toHaveLength(2)
+    const link = root.querySelector<HTMLAnchorElement>('.participant__gift a')
+    expect(link?.getAttribute('href')).toBe('https://example.com/s')
+    expect(link?.getAttribute('target')).toBe('_blank')
+    expect(link?.getAttribute('rel')).toContain('noopener')
+  })
+
   it('says so when nobody was added yet', () => {
     const root = mountComponent(ParticipantList, { participants: [] })
 

@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
+import Backdrop from './components/Backdrop.vue'
+import FireworksButton from './components/FireworksButton.vue'
+import NinjaSanta from './components/NinjaSanta.vue'
 </script>
 
 <template>
+  <Backdrop />
+  <NinjaSanta />
+  <FireworksButton />
   <main class="app">
     <header class="hero">
       <img src="/favicon.svg" alt="" width="56" height="56" />

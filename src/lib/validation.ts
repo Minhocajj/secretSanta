@@ -1,6 +1,6 @@
 import type { Participant, ParticipantInput, SessionInput } from '../types'
 
-export const LIMITS = { name: 60, email: 254, gift: 200, participants: 100 } as const
+export const LIMITS = { name: 60, email: 254, gift: 500, participants: 100 } as const
 export const SESSION_LIMITS = { title: 80, description: 500 } as const
 export const MIN_PARTICIPANTS = 2
 export const UNEXPECTED_FORM_ERROR = 'Something went wrong. Please try again.'
@@ -8,6 +8,7 @@ export const UNEXPECTED_FORM_ERROR = 'Something went wrong. Please try again.'
 const EMAIL_PATTERN =
   /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i
 const CONTROL_CHARACTERS = /\p{Cc}/u
+const NOTE_CONTROL_CHARACTERS = /[^\P{Cc}\n]/u
 
 export type FieldReason = 'required' | 'too_long' | 'unsupported' | 'invalid' | 'taken'
 export type MessageField = keyof ParticipantInput | keyof SessionInput
@@ -49,12 +50,19 @@ export type FormErrors = ParticipantErrors & { form?: string }
 export type SessionErrors = Partial<Record<keyof SessionInput, string>>
 
 const collapseSpaces = (value: string) => value.replace(/\s+/gu, ' ').trim()
+const collapseNote = (value: string) =>
+  value
+    .replace(/\r\n?/gu, '\n')
+    .replace(/[^\S\n]+/gu, ' ')
+    .replace(/ ?\n ?/gu, '\n')
+    .replace(/\n{3,}/gu, '\n\n')
+    .trim()
 const sameText = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
 export const hasErrors = (errors: object) => Object.keys(errors).length > 0
 
 export function normalizeInput({ name, email, gift }: ParticipantInput): ParticipantInput {
-  return { name: collapseSpaces(name), email: email.trim(), gift: collapseSpaces(gift) }
+  return { name: collapseSpaces(name), email: email.trim(), gift: collapseNote(gift) }
 }
 
 export function validateParticipant(input: ParticipantInput, existing: readonly Participant[]): ParticipantErrors {
@@ -83,7 +91,7 @@ export function validateParticipant(input: ParticipantInput, existing: readonly 
 
   if (gift.length > LIMITS.gift) {
     errors.gift = fieldMessage('gift', 'too_long')
-  } else if (CONTROL_CHARACTERS.test(gift)) {
+  } else if (NOTE_CONTROL_CHARACTERS.test(gift)) {
     errors.gift = fieldMessage('gift', 'unsupported')
   }
 
@@ -91,7 +99,7 @@ export function validateParticipant(input: ParticipantInput, existing: readonly 
 }
 
 export function normalizeSession({ title, description }: SessionInput): SessionInput {
-  return { title: collapseSpaces(title), description: collapseSpaces(description) }
+  return { title: collapseSpaces(title), description: collapseNote(description) }
 }
 
 export function validateSession(input: SessionInput): SessionErrors {
@@ -108,7 +116,7 @@ export function validateSession(input: SessionInput): SessionErrors {
 
   if (description.length > SESSION_LIMITS.description) {
     errors.description = fieldMessage('description', 'too_long')
-  } else if (CONTROL_CHARACTERS.test(description)) {
+  } else if (NOTE_CONTROL_CHARACTERS.test(description)) {
     errors.description = fieldMessage('description', 'unsupported')
   }
 

@@ -50,7 +50,7 @@ Supabase free projects are paused after a week of low activity. Resume the proje
 3. Create an **Email Template** ([dashboard](https://dashboard.emailjs.com/admin/templates)) and note its **Template ID**:
    - **To Email**: `{{to_email}}`
    - **Subject**: `Secret Santa`
-   - **Content**: `{{message}}` (optionally `Hi {{to_name}},` above it)
+   - **Content**: `<div style="white-space: pre-line">{{message}}</div>` (optionally `Hi {{to_name}},` above it). The `pre-line` style keeps the line breaks of lists in gift ideas. Without it, email clients run the lines together, which is still readable because list items start with a bullet.
    - Keep the double braces. They are HTML-escaped by EmailJS. Never use `{{{...}}}`, because names and gift ideas are typed in by people.
    - In the template settings, **turn off email history** (see the privacy notes below).
 4. Copy your **Public Key** from the [account page](https://dashboard.emailjs.com/admin/account).
@@ -63,6 +63,16 @@ The app sends these template variables: `to_email`, `to_name`, and `message`, fo
 > You were chosen to be Santa for Alice. Alice dreams of a red scarf.
 
 The second sentence only appears when a gift idea was entered.
+
+### Gift ideas and notes
+
+The gift idea (up to 500 characters) and the session note can have several lines. The gift idea also has a small editor with these buttons (shortcuts Ctrl/Cmd+B, I and K):
+
+- `**bold**`, `*italic*`
+- lists: lines starting with `- ` or `1. `
+- links: `[text](https://example.com)`, or just paste a web address
+
+On the admin page they are shown formatted, and links open in a new tab. Only `http` and `https` links are made clickable, and HTML typed by people is always shown as plain text. In emails the formatting is turned into plain text: bold and italic marks are removed, links are written as `text (https://...)`, and lists become lines starting with a bullet.
 
 ## How it works
 

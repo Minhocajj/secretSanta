@@ -199,6 +199,13 @@ describe('rules enforced by the database itself', () => {
       { title: 'bell\u0007' },
       { description: 'y'.repeat(501) },
       { description: 'bell\u0007' },
+      { description: 'two  spaces' },
+      { description: 'trailing \nspace' },
+      { description: 'a\n\n\nb' },
+      { description: 'a\r\nb' },
+      { description: '\nleading' },
+      { description: 'trailing\n' },
+      { description: 'tab\tinside' },
       { status: 'bogus' },
       { drawStartedAt: '2026-01-01T00:00:00Z' },
     ]
@@ -206,6 +213,28 @@ describe('rules enforced by the database itself', () => {
       await expect(insertSession(overrides), JSON.stringify(overrides)).rejects.toMatchObject({ code: '23514' })
     }
     await expect(insertSession({ title: 'x'.repeat(80), description: 'y'.repeat(500) })).resolves.toBeTypeOf('string')
+    await expect(insertSession({ description: 'one line\nnext line\n\nafter a gap' })).resolves.toBeTypeOf('string')
+  })
+
+  it('tidies a note sent straight to create_session and keeps its line breaks', async () => {
+    const created = (await database.rpc('create_session', {
+      p_title: 'Party',
+      p_description: '  Budget:  20 euro \r\n\r\n\r\n\r\n Gifts on Dec 20 \t\n',
+    })) as Created
+
+    const { rows } = await database.db.query<{ description: string }>(
+      'select description from private.sessions where id = $1',
+      [created.id],
+    )
+
+    expect(rows[0].description).toBe('Budget: 20 euro\n\nGifts on Dec 20')
+  })
+
+  it('still rejects other control characters in a note sent to create_session', async () => {
+    const error = await failure(database.rpc('create_session', { p_title: 'Party', p_description: 'a\nb\u0007' }))
+
+    expect(error.message).toBe('app:invalid')
+    expect(detailsOf(error)).toEqual({ description: 'unsupported' })
   })
 
   it('rejects malformed participants', async () => {
@@ -220,13 +249,30 @@ describe('rules enforced by the database itself', () => {
       { email: 'a@b' },
       { email: ' alice@example.com' },
       { email: `${'a'.repeat(243)}@example.com` },
-      { gift: 'x'.repeat(201) },
+      { gift: 'x'.repeat(501) },
       { gift: 'bell\u0007' },
+      { gift: 'bell\nin a list\u0007' },
+      { gift: 'two  spaces' },
+      { gift: 'a\n\n\nb' },
+      { gift: 'trailing\n' },
+      { gift: 'a\r\nb' },
     ]
     for (const fields of bad) {
       await expect(insertParticipant(id, fields), JSON.stringify(fields)).rejects.toMatchObject({ code: '23514' })
     }
-    await expect(insertParticipant(id, { name: 'x'.repeat(60), gift: 'y'.repeat(200) })).resolves.toBeDefined()
+    await expect(insertParticipant(id, { name: 'x'.repeat(60), gift: 'y'.repeat(500) })).resolves.toBeDefined()
+    await expect(
+      insertParticipant(id, { email: 'lists@example.com', name: 'Lists', gift: '- a book\n- a [link](https://example.com)\n\n**thanks**' }),
+    ).resolves.toBeDefined()
+  })
+
+  it('tidies a gift idea sent through join_session and keeps its line breaks', async () => {
+    const { id } = await createSession()
+
+    await join(id, { gift: '  - a book  \r\n\r\n\r\n\r\n - a scarf \t\n' })
+
+    const { rows } = await database.db.query<{ gift: string }>('select gift from private.participants where session_id = $1', [id])
+    expect(rows[0].gift).toBe('- a book\n\n- a scarf')
   })
 
   it('keeps names and emails unique per session, ignoring case', async () => {
@@ -331,7 +377,7 @@ describe('normalizing and validating inside the database', () => {
 
   it('reports every invalid participant field at once', async () => {
     const { id } = await createSession()
-    const error = await failure(join(id, { name: '', email: 'bad', gift: 'x'.repeat(201) }))
+    const error = await failure(join(id, { name: '', email: 'bad', gift: 'x'.repeat(501) }))
 
     expect(error.message).toBe('app:invalid')
     expect(detailsOf(error)).toEqual({ name: 'required', email: 'invalid', gift: 'too_long' })
@@ -357,13 +403,17 @@ describe('agreement with the client-side validators', () => {
   const longLabel = (length: number) => 'x'.repeat(length)
   const cases: ParticipantInput[] = [
     { name: 'Alice', email: 'alice@example.com', gift: '' },
-    { name: 'x'.repeat(60), email: 'a@b.co', gift: 'x'.repeat(200) },
+    { name: 'x'.repeat(60), email: 'a@b.co', gift: 'x'.repeat(500) },
+    { name: 'Alice', email: 'a@b.co', gift: '- a book\n- a scarf' },
+    { name: 'Alice', email: 'a@b.co', gift: '  one  \r\n\r\n\r\n\r\n two  ' },
+    { name: 'Alice', email: 'a@b.co', gift: 'bell\nin a list\u0007' },
+    { name: 'Alice', email: 'a@b.co', gift: `${'x\n'.repeat(250)}x` },
     { name: 'x'.repeat(61), email: 'a@b.co', gift: '' },
     { name: '', email: '', gift: '' },
     { name: '   ', email: 'a@b.co', gift: '' },
     { name: 'Bell\u0007', email: 'a@b.co', gift: '' },
     { name: 'Alice', email: 'a@b.co', gift: 'tab\there' },
-    { name: 'Alice', email: 'a@b.co', gift: 'x'.repeat(201) },
+    { name: 'Alice', email: 'a@b.co', gift: 'x'.repeat(501) },
     { name: 'Alice', email: 'a@b.co', gift: 'del\u007f' },
     { name: 'Alice', email: 'first.last+tag@example.com', gift: '' },
     { name: 'Alice', email: "o'brien@example.org", gift: '' },

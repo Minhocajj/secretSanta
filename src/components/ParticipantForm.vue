@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref, useTemplateRef } from 'vue'
+import RichTextField from './RichTextField.vue'
 import { LIMITS, UNEXPECTED_FORM_ERROR, hasErrors, validateParticipant, type FormErrors } from '../lib/validation'
 import type { Participant, ParticipantInput } from '../types'
 
@@ -78,16 +79,14 @@ async function submit() {
 
     <div class="field field--wide">
       <label for="participant-gift">Gift idea <span class="optional">(optional)</span></label>
-      <input
+      <RichTextField
         id="participant-gift"
         v-model="form.gift"
-        type="text"
-        autocomplete="off"
         placeholder="Something they would love to get"
         :maxlength="LIMITS.gift"
-        :aria-invalid="Boolean(errors.gift)"
-        :aria-describedby="errors.gift ? 'participant-gift-error' : undefined"
-        @input="clearError('gift')"
+        :invalid="Boolean(errors.gift)"
+        :describedby="errors.gift ? 'participant-gift-error' : undefined"
+        @update:model-value="clearError('gift')"
       />
       <p v-if="errors.gift" id="participant-gift-error" class="field__error">{{ errors.gift }}</p>
     </div>
