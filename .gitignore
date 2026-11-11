@@ -5,6 +5,7 @@ coverage
 .env.*
 !.env.example
 *.local
+.wrangler
 .DS_Store
 .idea
 .vscode

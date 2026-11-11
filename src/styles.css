@@ -164,6 +164,13 @@ body {
   color: var(--danger);
 }
 
+.card .form__error {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--danger);
+}
+
 .form .btn {
   grid-column: 1 / -1;
   justify-self: start;

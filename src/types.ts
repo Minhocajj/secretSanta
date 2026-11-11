@@ -8,6 +8,11 @@ export interface Participant extends ParticipantInput {
   id: number
 }
 
+export interface SessionInput {
+  title: string
+  description: string
+}
+
 export interface Assignment {
   santa: Participant
   giftee: Participant

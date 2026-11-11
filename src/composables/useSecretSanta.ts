@@ -54,6 +54,12 @@ export function useSecretSanta(options: SecretSantaOptions = {}) {
     if (phase.value === 'edit') participants.value = participants.value.filter((participant) => participant.id !== id)
   }
 
+  function setParticipants(list: readonly Participant[]) {
+    if (phase.value !== 'edit') return
+    participants.value = list.map((participant) => ({ ...participant }))
+    nextId = Math.max(nextId, ...list.map(({ id }) => id + 1))
+  }
+
   function queueJobs(retryOnly: boolean): Job[] {
     if (retryOnly) {
       for (const delivery of deliveries.value) {
@@ -145,6 +151,7 @@ export function useSecretSanta(options: SecretSantaOptions = {}) {
     hasUndeliveredDraw,
     addParticipant,
     removeParticipant,
+    setParticipants,
     roll,
     reroll,
     confirm,
@@ -153,3 +160,5 @@ export function useSecretSanta(options: SecretSantaOptions = {}) {
     startOver,
   }
 }
+
+export type SecretSanta = ReturnType<typeof useSecretSanta>

@@ -77,6 +77,44 @@ describe('managing participants', () => {
     santa.removeParticipant(1)
     expect(santa.participants.value).toHaveLength(4)
   })
+
+  it('replaces the list with one loaded from elsewhere, keeping its ids and not aliasing the input', () => {
+    const { santa } = setup({}, [])
+    const loaded = [
+      { id: 7, name: 'Alice', email: 'alice@example.com', gift: 'a red scarf' },
+      { id: 9, name: 'Bob', email: 'bob@example.com', gift: '' },
+    ]
+
+    santa.setParticipants(loaded)
+    loaded[0].name = 'Changed afterwards'
+
+    expect(santa.participants.value).toEqual([
+      { id: 7, name: 'Alice', email: 'alice@example.com', gift: 'a red scarf' },
+      { id: 9, name: 'Bob', email: 'bob@example.com', gift: '' },
+    ])
+    expect(santa.addParticipant({ name: 'Carol', email: 'carol@example.com', gift: '' })).toEqual({})
+    expect(santa.participants.value.map(({ id }) => id)).toEqual([7, 9, 10])
+  })
+
+  it('draws from a loaded list', async () => {
+    const { santa, sent } = setup({}, [])
+    santa.setParticipants(PEOPLE.map((person, index) => ({ id: index + 10, ...person })))
+
+    await santa.roll()
+
+    expect(sent).toHaveLength(4)
+    expectValidDistribution(pairsFromEmails(sent))
+  })
+
+  it('ignores a loaded list once a draw exists', async () => {
+    const { santa } = setup()
+    santa.showResults.value = true
+    await santa.roll()
+
+    santa.setParticipants([])
+
+    expect(santa.participants.value).toHaveLength(4)
+  })
 })
 
 describe('silent mode (results hidden)', () => {
