@@ -124,6 +124,7 @@ No code changes. The goal is to have the current app online and a Supabase proje
 - Show title and note, the reused form, and a success state.
 - Handle not-found, closed and full states, and add a one-line privacy notice.
 - Never list other participants.
+- **Status:** built and checked locally (typecheck, tests, build). `src/views/JoinView.vue` loads the session with `getPublicSession`, shows the form (`Join`), a confirmation, and separate messages for not found, closed or completed, full, unavailable (with retry) and no backend configured. If the session closes, fills up or disappears while the form is open, the page switches to that message. The API reaches views through `sessionApiKey` (`src/lib/sessionApiKey.ts`), provided in `main.ts` from `readBackendConfig(import.meta.env)`; it is `null` when unconfigured. Still open: set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` as Cloudflare build variables and try a join link on the deployed site. Until a session exists (Phase 4), a test session can be created in the Supabase SQL editor with `select public.create_session('Test', '');`.
 
 ### Phase 4: create and admin pages (`/` and `/admin/:id#token`, admin lazy-loaded)
 

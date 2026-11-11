@@ -24,7 +24,14 @@ describe('App', () => {
     expect(root.querySelector('#participant-name')).not.toBeNull()
   })
 
-  it.each(['/', '/join/some-id', '/admin/some-id', '/nowhere/at/all'])('opens the quick flow for %s', async (path) => {
+  it('keeps /join/:id as its own page', async () => {
+    const { root, router } = await mountAt('/join/some-id')
+
+    expect(router.currentRoute.value.path).toBe('/join/some-id')
+    expect(root.querySelector('#participants-title')).toBeNull()
+  })
+
+  it.each(['/', '/admin/some-id', '/nowhere/at/all'])('opens the quick flow for %s', async (path) => {
     const { root, router } = await mountAt(path)
 
     expect(router.currentRoute.value.path).toBe('/quick')
